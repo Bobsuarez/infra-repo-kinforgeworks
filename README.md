@@ -342,10 +342,8 @@ así que quedó como variables de entorno planas directo en su Deployment.
 - [x] Corregir puertos internos de leads/leadsprocessor/leadsdelivery a
       8080 (el `server.port` real de Spring; 8085/8081/8082 eran puertos
       de host de podman-compose, no del contenedor)
-- [ ] Sellar `maestrias-rabbitmq-secrets` (`RABBITMQ_DEFAULT_USER/PASS`
-      del broker — mismo usuario/password que ya pusiste en
-      `maestrias-db-credentials`)
-- [ ] Sellar `maestrias-leadsdelivery-secrets` (`MAIL_*`)
+- [x] Sellar `maestrias-rabbitmq-secrets` (`RABBITMQ_DEFAULT_USER/PASS`)
+- [x] Sellar `maestrias-leadsdelivery-secrets` (`MAIL_*`)
 - [ ] Sellar los Secrets de MinIO/postgrest que faltan (`galfiends-*`,
       `maestrias-minio-secrets`, `maestrias-web-secrets`,
       `maestrias-whatsapp-secrets`)
