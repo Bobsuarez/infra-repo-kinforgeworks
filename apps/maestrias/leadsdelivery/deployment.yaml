@@ -25,6 +25,8 @@ spec:
             - containerPort: 8082
           envFrom:
             - secretRef:
+                name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
+            - secretRef:
                 name: maestrias-leadsdelivery-secrets # MAIL_*, whatsapp-gateway URL interna, etc.
           resources:
             requests:

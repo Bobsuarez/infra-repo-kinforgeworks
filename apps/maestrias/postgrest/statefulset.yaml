@@ -21,7 +21,7 @@ spec:
           image: postgres:16
           envFrom:
             - secretRef:
-                name: maestrias-db-secrets # POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD
+                name: maestrias-db-credentials # compartido con leads/leadsprocessor/leadsdelivery/worker
           ports:
             - containerPort: 5432
           volumeMounts:
