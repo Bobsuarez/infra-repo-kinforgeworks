@@ -25,7 +25,7 @@ Cloudflare (DNS + proxy)
    └── maestrias.kinforgeworks.com      → namespace: maestrias
          ├── web                          (público, / )
          ├── leads                        (público, /api — mismo Ingress que web)
-         ├── leadsprocessor, leadsdelivery, worker, whatsapp-gateway, rabbitmq (internos)
+         ├── leadsprocessor, leadsdelivery, worker, rabbitmq (internos)
          ├── postgrest (PostgreSQL primary, aislado, interno)
          └── cdn.kinforgeworks.com → minio (aislado, público)
 ```
@@ -96,7 +96,6 @@ infra-repo-kinforgeworks/
 │       ├── leadsprocessor/         # scheduler interno, sin Ingress
 │       ├── leadsdelivery/          # consumer interno, sin Ingress
 │       ├── worker/                 # ETL Python (leadsingestor), sin Service/Ingress
-│       ├── whatsapp-gateway/       # gateway interno, sin Ingress
 │       └── web/
 │           ├── deployment.yaml
 │           └── ingress.yaml        # maestrias.kinforgeworks.com  (/api -> leads, / -> web)
@@ -347,8 +346,15 @@ así que quedó como variables de entorno planas directo en su Deployment.
 - [x] `web` no necesita secret propio — `PUBLIC_API_URL`/`PUBLIC_GOOGLE_CLIENT_ID`
       son variables de build-time de Astro (horneadas en la imagen), no de
       runtime; se eliminó el `secretRef: maestrias-web-secrets`
-- [ ] Sellar los Secrets que faltan (`galfiends-*`, `maestrias-minio-secrets`,
-      `maestrias-whatsapp-secrets`)
+- [x] `whatsapp-gateway` removido de `apps/maestrias/` (deshabilitado por
+      ahora); `WHATSAPP_GATEWAY_URL` en `leadsdelivery` queda apuntando a un
+      Service que no existe a propósito — solo falla el envío puntual por
+      WhatsApp, no el arranque del pod
+- [x] Sellar `maestrias-minio-secrets`
+- [ ] Si el usuario/password de `maestrias-minio-secrets` no es
+      `minioadmin`/`minioadmin`, agregar `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`
+      con el valor real al secret de `leads` (hoy usa esos defaults)
+- [ ] Sellar los Secrets que faltan de `galfiends` (`galfiends-*`)
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
       `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,
