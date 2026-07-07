@@ -24,7 +24,9 @@ spec:
             - containerPort: 8085
           envFrom:
             - secretRef:
-                name: maestrias-leads-secrets # DB_*, RABBITMQ_*, etc.
+                name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
+            - secretRef:
+                name: maestrias-leads-secrets # RABBITMQ_*, etc. (todo lo que NO sea DB)
           resources:
             requests:
               cpu: 200m

@@ -25,7 +25,7 @@ spec:
             - containerPort: 8081
           envFrom:
             - secretRef:
-                name: maestrias-leadsprocessor-secrets
+                name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
           resources:
             requests:
               cpu: 150m

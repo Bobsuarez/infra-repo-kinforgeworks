@@ -24,7 +24,7 @@ spec:
           image: ghcr.io/bobsuarez/kindredworks/em-worker:latest
           envFrom:
             - secretRef:
-                name: maestrias-worker-secrets
+                name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
           resources:
             requests:
               cpu: 150m
