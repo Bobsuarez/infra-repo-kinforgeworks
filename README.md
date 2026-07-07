@@ -54,14 +54,18 @@ infra-repo-kinforgeworks/
 │   └── bootstrap-cluster.yml      # SSH al VPS: k3s -> ArgoCD -> root-app (push a bootstrap/**, clusters/**)
 ├── bootstrap/
 │   ├── 01-install-k3s.sh
-│   ├── 02-install-argocd.sh
-│   └── 03-apply-root-app.sh
+│   ├── 02-install-argocd.sh       # incluye server.insecure=true (Ingress detrás de Traefik)
+│   ├── 03-apply-root-app.sh
+│   └── seal-secret.sh             # helper: wrapea kubeseal
 ├── clusters/
 │   └── contabo-vps/
 │       ├── root-app.yaml          # ArgoCD ApplicationSet ("app of apps" sobre apps/*)
 │       ├── sealed-secrets-app.yaml # Application que instala el controller (namespace kube-system)
-│       └── sealed-secrets/
-│           └── controller.yaml    # manifest oficial vendorizado (Bitnami, v0.38.4)
+│       ├── sealed-secrets/
+│       │   └── controller.yaml    # manifest oficial vendorizado (Bitnami, v0.38.4)
+│       ├── argocd-ingress-app.yaml # Application que expone la UI de ArgoCD
+│       └── argocd-ingress/
+│           └── ingress.yaml       # argocd.kinforgeworks.com
 ├── apps/
 │   ├── galfiends/
 │   │   ├── namespace.yaml
@@ -143,6 +147,29 @@ Ver [`BOOTSTRAP_PROMPT.md`](./BOOTSTRAP_PROMPT.md) para el procedimiento
 manual equivalente asistido por Claude Code (útil para diagnosticar si el
 workflow automático falla a mitad de camino).
 
+### Acceder a la UI de ArgoCD
+
+Una vez que sincronizó `clusters/contabo-vps/argocd-ingress-app.yaml`,
+la UI queda disponible en **https://argocd.kinforgeworks.com** (usuario
+`admin`, contraseña inicial impresa por `02-install-argocd.sh` — rotarla
+con `argocd account update-password` en el primer login). Mientras el DNS
+no esté creado, o para el primer acceso antes de que exista el Ingress, se
+puede entrar por túnel SSH:
+
+```bash
+# en el VPS
+kubectl -n argocd port-forward svc/argocd-server 8080:443
+# en tu compu
+ssh -L 8080:localhost:8080 usuario@vps
+# abrir https://localhost:8080
+```
+
+Para el CLI de `argocd` contra el Ingress (que corre en modo `--insecure`,
+HTTP plano puertas adentro), usar `--grpc-web`:
+```bash
+argocd login argocd.kinforgeworks.com --grpc-web
+```
+
 ---
 
 ## Gestión de Secrets (Sealed Secrets)
@@ -186,8 +213,9 @@ el pipeline para desencriptar.
       `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,
       `api.galfiends.kinforgeworks.com`)
 - [ ] Crear en Cloudflare los registros DNS para los subdominios de arriba
-      apuntando a la IP del VPS (Traefik) — hoy solo existen, si acaso,
-      `kinforgeworks.com` y los que ya usaba el stack viejo (`n8n.`, `cdn.`)
+      **+ `argocd.kinforgeworks.com`** apuntando a la IP del VPS (Traefik) —
+      hoy solo existen, si acaso, `kinforgeworks.com` y los que ya usaba el
+      stack viejo (`n8n.`, `cdn.`)
 - [ ] Si `infra-repo-kinforgeworks` es privado, crear el secret
       `ARGOCD_REPO_TOKEN` (PAT de solo lectura) en el Environment `works`;
       sin él, `03-apply-root-app.sh` asume repo público y el
