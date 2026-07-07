@@ -418,21 +418,22 @@ rm galfields-minio-secrets-plain.yaml
       pipeline), pendiente de verificar en los otros 5 paquetes si algo
       sigue en `ImagePullBackOff` después de sellar el pull secret
 - [x] Sellar `ghcr-pull-secret` en `galfields` y `maestrias`
-- [ ] Re-sellar `ghcr-pull-secret` de `galfields` (el que ya existía quedó
-      inválido al renombrar el namespace `galfiends`→`galfields` - Sealed
-      Secrets ata el cifrado a namespace+nombre; mismo comando de siempre,
-      ver "Caso especial: ghcr-pull-secret")
+- [x] Renombrar `galfiends`→`galfields` en todo el repo (typo del nombre
+      real de la empresa, "Galfield's") y re-sellar `ghcr-pull-secret` para
+      el namespace nuevo (Sealed Secrets ata el cifrado a namespace+nombre,
+      el que existía para `galfiends` quedó inválido)
 - [x] `apps/galfields/micro` es el servicio real `pos-backend`
-      (`ghcr.io/bobsuarez/galfields/pos-backend` — "galfields" sin la "n",
-      distinto del namespace/dominio "galfields"), imagen pública, aún no
+      (`ghcr.io/bobsuarez/galfields/pos-backend`), imagen pública, aún no
       probado en su totalidad
 - [x] `apps/galfields/postgrest/` pasó a ser Postgres puro (como
       `maestrias/postgrest/`), con su propio `StatefulSet`+`PVC` en vez del
       Deployment de PostgREST que apuntaba a una DB inexistente
-- [ ] Sellar `galfields-db-credentials` (POSTGRES_*+DB_* compartido entre
+- [x] Sellar `galfields-db-credentials` (POSTGRES_*+DB_* compartido entre
       `postgrest` y `micro`) y `galfields-minio-secrets`
       (`MINIO_ROOT_USER/PASSWORD` + `MINIO_ACCESS_KEY/SECRET_KEY`, mismo
-      valor — ver sección de arriba, mismo mecanismo que `maestrias`)
+      valor)
+- [ ] Actualizar en Cloudflare los registros DNS de `galfiends.*` a
+      `galfields.*` (fuera de este repo, acción manual pendiente)
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication
