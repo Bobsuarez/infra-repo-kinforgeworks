@@ -109,7 +109,7 @@ infra-repo-kinforgeworks/
 
 ---
 
-## Presupuesto de recursos (VPS 12 GiB RAM)
+## Presupuesto de recursos (VPS real: 6 vCPU / ~12 GiB RAM)
 
 | Componente | RAM estimada |
 |---|---|
@@ -121,6 +121,20 @@ infra-repo-kinforgeworks/
 Cada Deployment/StatefulSet en `apps/` debe declarar `resources.requests` y
 `resources.limits` explícitos para evitar que un solo pod agote la memoria
 del nodo.
+
+**Importante sobre `limits.cpu` y el `ResourceQuota` por namespace:** la
+suma de los `limits.cpu` de todos los Deployments/StatefulSets de un
+namespace debe quedar **por debajo** del `limits.cpu` del `ResourceQuota`
+de ese namespace, con margen — si no, el primer rolling update (que crea
+un pod extra mientras el viejo todavía no se apaga) queda bloqueado con
+`FailedCreate: exceeded quota` para siempre, aunque el `Deployment` ya
+tenga la imagen/config correcta. Nos pasó exactamente esto en
+`maestrias`: la suma de límites (5.25 CPU) superaba el propio
+`limits.cpu: "5"` del `ResourceQuota`, incluso antes de intentar ningún
+rollout. Con 6 vCPU compartidas entre `galfiends`, `maestrias` y la
+plataforma (ArgoCD, Traefik, sealed-secrets), la regla práctica es dejar
+la suma de límites de cada namespace con margen de al menos ~30-40%
+respecto a su cuota.
 
 ---
 
