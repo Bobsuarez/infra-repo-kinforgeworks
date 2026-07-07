@@ -21,12 +21,16 @@ spec:
           # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
           image: ghcr.io/bobsuarez/kindredworks/em-leads:latest
           ports:
-            - containerPort: 8085
+            - containerPort: 8080 # el server.port real de Spring (no 8085: ese era el puerto de host de podman-compose)
+          env:
+            # No son secretos: URL interna del cluster y un client id de OAuth público.
+            - name: EM_LEADS_PROCESSOR_GATEWAY_URL
+              value: http://leadsprocessor:8080/api/
+            - name: GOOGLE_CLIENT_ID
+              value: "510282063986-644dne1km3uu8c2705fe35l1l1fuhaim.apps.googleusercontent.com"
           envFrom:
             - secretRef:
                 name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
-            - secretRef:
-                name: maestrias-leads-secrets # RABBITMQ_*, etc. (todo lo que NO sea DB)
           resources:
             requests:
               cpu: 200m
@@ -44,5 +48,5 @@ spec:
   selector:
     app: leads
   ports:
-    - port: 8085
-      targetPort: 8085
+    - port: 8080
+      targetPort: 8080

@@ -22,7 +22,7 @@ spec:
           # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
           image: ghcr.io/bobsuarez/kindredworks/em-leads-processor:latest
           ports:
-            - containerPort: 8081
+            - containerPort: 8080 # server.port real de Spring (no 8081)
           envFrom:
             - secretRef:
                 name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
@@ -43,5 +43,5 @@ spec:
   selector:
     app: leadsprocessor
   ports:
-    - port: 8081
-      targetPort: 8081
+    - port: 8080
+      targetPort: 8080

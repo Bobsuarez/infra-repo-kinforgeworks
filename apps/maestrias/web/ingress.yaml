@@ -25,7 +25,7 @@ spec:
               service:
                 name: leads
                 port:
-                  number: 8085
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:
