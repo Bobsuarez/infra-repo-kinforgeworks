@@ -236,6 +236,42 @@ rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localment
 # repetir cambiando --namespace=galfiends y la salida a apps/galfiends/ghcr-pull-secret.sealed.yaml
 ```
 
+### Caso especial: `maestrias-db-credentials` (compartido entre Postgres y 4 servicios)
+
+`postgrest/statefulset.yaml` (el motor Postgres) y los Deployments de
+`leads`, `leadsprocessor`, `leadsdelivery` y `worker` referencian el
+**mismo** Secret `maestrias-db-credentials` — así los valores de usuario/
+contraseña de la DB viven en un solo lugar en vez de 5 copias que se
+pueden desincronizar. Cada consumidor espera el nombre de variable que ya
+usaba en el workflow viejo de podman-compose, así que el Secret trae
+claves repetidas apuntando al mismo valor (una para Postgres, otra para
+las apps Java). Importante: la URL JDBC debe apuntar al Service de
+Kubernetes `db-primary` (namespace `maestrias`), **no** a `em-db-primary`
+(ese era el nombre de contenedor en podman-compose, acá no existe):
+
+```bash
+kubectl create secret generic maestrias-db-credentials \
+  --from-literal=POSTGRES_DB=<nombre_db> \
+  --from-literal=POSTGRES_USER=<usuario> \
+  --from-literal=POSTGRES_PASSWORD=<password> \
+  --from-literal=DB_NAME=<nombre_db> \
+  --from-literal=DB_USERNAME=<usuario> \
+  --from-literal=DB_PASSWORD=<password> \
+  --from-literal=DB_URL_PRIMARY_VARIABLE_GIT='jdbc:postgresql://db-primary:5432/<nombre_db>' \
+  --from-literal=DB_USERNAME_VARIABLE_GIT=<usuario> \
+  --from-literal=DB_PASSWORD_SECRET_GIT=<password> \
+  --namespace=maestrias \
+  --dry-run=client -o yaml > db-credentials-plain.yaml
+
+./bootstrap/seal-secret.sh db-credentials-plain.yaml apps/maestrias/db-credentials.sealed.yaml
+rm db-credentials-plain.yaml
+```
+
+`leads` y `leadsdelivery` además necesitan su propio secret aparte
+(`maestrias-leads-secrets` con `RABBITMQ_*`, `maestrias-leadsdelivery-secrets`
+con `MAIL_*` y la URL interna de `whatsapp-gateway`) — esos sí son propios
+de cada uno, no se consolidan.
+
 ---
 
 ## Pendientes / próximos pasos
@@ -243,9 +279,12 @@ rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localment
 - [x] Definir gestión de Secrets — Sealed Secrets (controller vía GitOps en
       `clusters/contabo-vps/sealed-secrets-app.yaml`, helper
       `bootstrap/seal-secret.sh`)
-- [ ] Sellar y commitear los `SealedSecret` reales de cada servicio (DB,
-      MinIO, RabbitMQ, mail, WhatsApp) — hoy los `secretRef` de `apps/`
-      apuntan a Secrets que todavía no existen en el clúster
+- [x] Sellar `maestrias-db-credentials` (DB compartida por postgrest,
+      leads, leadsprocessor, leadsdelivery y worker)
+- [ ] Sellar el resto de los `SealedSecret` de cada servicio (MinIO,
+      RabbitMQ, mail, `maestrias-leads-secrets` con RABBITMQ_*,
+      `maestrias-leadsdelivery-secrets` con MAIL_*/whatsapp) — hoy esos
+      `secretRef` de `apps/` siguen apuntando a Secrets que no existen
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
       `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,
