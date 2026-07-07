@@ -25,6 +25,9 @@ spec:
             - containerPort: 8080 # server.port real de Spring (no 8082)
           env:
             # No son secretos: URL interna del cluster y nombre de cola.
+            # whatsapp-gateway está deshabilitado por ahora (ver
+            # apps/maestrias/), esta URL queda inalcanzable a propósito -
+            # solo falla el envío por WhatsApp puntual, no el arranque del pod.
             - name: WHATSAPP_GATEWAY_URL
               value: http://whatsapp-gateway:3000/api/
             - name: RABBITMQ_LEADS_QUEUE
