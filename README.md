@@ -438,14 +438,18 @@ rm galfields-minio-secrets-plain.yaml
       para coincidir con la versión ya probada en el `compose.yaml` de
       `pos-backend` y ser compatible con streaming replication el día que
       se agregue la réplica
-- [ ] **Pendiente de la app, no de infra**: `pos-backend` tiene
-      `spring.flyway.enabled=true` + `ddl-auto=validate`, pero el único
-      schema SQL que existe (`pos_database.sql`) está en sintaxis MySQL
-      (`AUTO_INCREMENT`, `ENUM` inline, `ON UPDATE CURRENT_TIMESTAMP`) y no
-      corre en Postgres. Faltan migraciones Flyway reales en
-      `src/main/resources/db/migration` del repo de `pos-backend`, en
-      sintaxis Postgres — sin eso, el pod va a arrancar pero crashear al
-      validar el schema contra una DB vacía
+- [x] Schema inicial de `galfields` traducido de MySQL a Postgres y
+      montado como `ConfigMap` en `/docker-entrypoint-initdb.d/`
+      (`apps/galfields/postgrest/init-schema-configmap.yaml`) — es un
+      stand-in para poder probar `pos-backend` ya, **no reemplaza
+      migraciones Flyway reales**. Requiere borrar el PVC existente para
+      que se re-inicialice y el script corra (solo corre en un volumen
+      vacío)
+- [ ] **Pendiente de la app, no de infra**: cuando `pos-backend` tenga
+      migraciones Flyway reales en `src/main/resources/db/migration`
+      (sintaxis Postgres), borrar `init-schema-configmap.yaml` y el PVC de
+      `galfields` para que Flyway quede como única fuente de verdad del
+      schema, sin conflictos con el stand-in
 - [ ] Cuando se agregue la réplica de `galfields` (`gf-db-replica`): portar
       `00_setup_replication.sh` a un `ConfigMap` montado en
       `/docker-entrypoint-initdb.d/`, parametrizando la contraseña del
