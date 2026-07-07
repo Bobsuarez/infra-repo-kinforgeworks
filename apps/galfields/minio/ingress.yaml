@@ -1,24 +1,25 @@
-# TODO: confirmar dominio real (se asume kinforgeworks.com por el nombre del repo/org).
+# Expone solo la API S3 (para servir/subir PDFs e imágenes). La consola de
+# administración (9001) queda interna; usar port-forward para acceder a ella.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: micro
-  namespace: galfiends
+  name: minio
+  namespace: galfields
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - galfiends.kinforgeworks.com
+        - cdn.galfields.kinforgeworks.com
   rules:
-    - host: galfiends.kinforgeworks.com
+    - host: cdn.galfields.kinforgeworks.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: micro
+                name: minio
                 port:
-                  number: 8080
+                  number: 9000

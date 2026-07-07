@@ -6,7 +6,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: db-primary-data
-  namespace: galfiends
+  namespace: galfields
 spec:
   accessModes:
     - ReadWriteOnce

@@ -1,7 +1,7 @@
 # Nota de nombre: esta carpeta se llama "postgrest" por continuidad con el
 # monorepo de la app (european-masters/postgrest/), pero contiene el motor
 # PostgreSQL en si (primary), no la herramienta PostgREST. Aislado del
-# postgres/minio de galfiends a propósito (ver README - Namespace por proyecto).
+# postgres/minio de galfields a propósito (ver README - Namespace por proyecto).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: db-primary
-  namespace: galfiends
+  namespace: galfields
 spec:
   serviceName: db-primary
   replicas: 1
@@ -19,7 +19,7 @@ spec:
           image: postgres:16
           envFrom:
             - secretRef:
-                name: galfiends-db-credentials # compartido con micro (pos-backend)
+                name: galfields-db-credentials # compartido con micro (pos-backend)
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -41,7 +41,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: db-primary
-  namespace: galfiends
+  namespace: galfields
 spec:
   selector:
     app: db-primary

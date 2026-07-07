@@ -1,14 +1,14 @@
-# Instancia de MinIO aislada para galfiends (credenciales y datos propios,
+# Instancia de MinIO aislada para galfields (credenciales y datos propios,
 # separados de la de maestrias) para poder migrar este proyecto a otro
 # servidor el dia de mañana sin arrastrar el storage del otro.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: minio-data
-  namespace: galfiends
+  namespace: galfields
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi # TODO: ajustar según volumen real de PDFs/imágenes de galfiends
+      storage: 10Gi # TODO: ajustar según volumen real de PDFs/imágenes de galfields

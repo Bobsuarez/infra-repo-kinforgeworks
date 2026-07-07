@@ -1,5 +1,5 @@
 # "App of apps" vía ApplicationSet: cada carpeta de primer nivel bajo apps/
-# (galfiends, maestrias, ...) se convierte automáticamente en una Application
+# (galfields, maestrias, ...) se convierte automáticamente en una Application
 # de ArgoCD, desplegada en su propio namespace del mismo nombre. Agregar un
 # proyecto nuevo es solo agregar una carpeta en apps/ y hacer push.
 apiVersion: argoproj.io/v1alpha1

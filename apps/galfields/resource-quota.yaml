@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: galfiends-quota
-  namespace: galfiends
+  name: galfields-quota
+  namespace: galfields
 spec:
   hard:
     requests.cpu: "1"
@@ -13,8 +13,8 @@ spec:
 apiVersion: v1
 kind: LimitRange
 metadata:
-  name: galfiends-limits
-  namespace: galfiends
+  name: galfields-limits
+  namespace: galfields
 spec:
   limits:
     - type: Container

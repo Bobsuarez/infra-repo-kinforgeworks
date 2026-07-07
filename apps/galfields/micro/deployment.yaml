@@ -1,12 +1,11 @@
 # "micro" = el servicio real pos-backend (spring.application.name=pos),
-# imagen pública ghcr.io/bobsuarez/galfields/pos-backend (ojo: "galfields",
-# sin la "n" - distinto del namespace/dominio "galfiends" de este repo).
+# imagen pública ghcr.io/bobsuarez/galfields/pos-backend.
 # Aún no se ha probado en su totalidad (aviso del dueño del servicio).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: micro
-  namespace: galfiends
+  namespace: galfields
 spec:
   replicas: 1
   selector:
@@ -34,9 +33,9 @@ spec:
               value: galfields-products
           envFrom:
             - secretRef:
-                name: galfiends-db-credentials # DB_*, compartido con postgrest/statefulset.yaml
+                name: galfields-db-credentials # DB_*, compartido con postgrest/statefulset.yaml
             - secretRef:
-                name: galfiends-minio-secrets # MINIO_ACCESS_KEY/MINIO_SECRET_KEY (= root user/pass de MinIO)
+                name: galfields-minio-secrets # MINIO_ACCESS_KEY/MINIO_SECRET_KEY (= root user/pass de MinIO)
           resources:
             requests:
               cpu: 100m
