@@ -244,19 +244,23 @@ rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localment
 contraseña de la DB y de RabbitMQ viven en un solo lugar en vez de copias
 que se pueden desincronizar.
 
-**Importante — nombres de variable reales:** las apps Java NO leen
-`DB_URL_PRIMARY_VARIABLE_GIT` / `DB_USERNAME_VARIABLE_GIT` /
-`DB_PASSWORD_SECRET_GIT` (esos sufijos `_VARIABLE_GIT`/`_SECRET_GIT` eran
-solo el nombre que usaba el workflow viejo de GitHub Actions para leer sus
-propios secrets/vars y pasarlos a `podman-compose`). La app en sí, vía
-`application.properties`, espera `DB_URL_PRIMARY`, `DB_USER_PRIMARY`,
-`DB_PASSWORD_PRIMARY` — y además `RABBITMQ_HOST`, `RABBITMQ_PORT`,
-`RABBITMQ_VHOST`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD` (esto último
-también lo necesitan `leadsprocessor`/`leadsdelivery`/`worker`, no solo
-`leads`). La URL JDBC debe apuntar al Service de Kubernetes `db-primary`
-(namespace `maestrias`), **no** a `em-db-primary` (nombre de contenedor
-viejo de podman-compose, acá no existe). `RABBITMQ_HOST` apunta al
-Service `rabbitmq` del mismo namespace:
+**Importante — nombres de variable reales:** salieron de los
+`application.yaml` reales de cada servicio (no del workflow viejo de
+GitHub Actions, cuyos sufijos `_VARIABLE_GIT`/`_SECRET_GIT` eran solo el
+nombre que usaba ese workflow para leer sus propios secrets/vars, no lo
+que la app espera). Los servicios Java leen `DB_URL_PRIMARY`,
+`DB_USER_PRIMARY`, `DB_PASSWORD_PRIMARY` (+ `DB_URL_REPLICA`/
+`DB_USER_REPLICA`/`DB_PASSWORD_REPLICA` — `leads` los exige aunque no
+haya réplica todavía, así que apuntan a la misma `db-primary` hasta que
+se monte una real, ver Pendientes) y `RABBITMQ_HOST`/`RABBITMQ_PORT`/
+`RABBITMQ_VHOST`/`RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD`. El worker
+Python (`em-worker`) usa nombres **distintos** para lo mismo:
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` y
+`RABBITMQ_USER` (sin "NAME"). La URL JDBC apunta al Service de
+Kubernetes `db-primary` (namespace `maestrias`), **no** a `em-db-primary`
+(nombre de contenedor viejo de podman-compose, acá no existe).
+`RABBITMQ_HOST`/`DB_HOST` apuntan a los Services `rabbitmq`/`db-primary`
+del mismo namespace:
 
 ```bash
 kubectl create secret generic maestrias-db-credentials \
@@ -266,11 +270,20 @@ kubectl create secret generic maestrias-db-credentials \
   --from-literal=DB_URL_PRIMARY='jdbc:postgresql://db-primary:5432/<nombre_db>' \
   --from-literal=DB_USER_PRIMARY=<usuario> \
   --from-literal=DB_PASSWORD_PRIMARY=<password> \
+  --from-literal=DB_URL_REPLICA='jdbc:postgresql://db-primary:5432/<nombre_db>' \
+  --from-literal=DB_USER_REPLICA=<usuario> \
+  --from-literal=DB_PASSWORD_REPLICA=<password> \
+  --from-literal=DB_HOST=db-primary \
+  --from-literal=DB_PORT=5432 \
+  --from-literal=DB_NAME=<nombre_db> \
+  --from-literal=DB_USER=<usuario> \
+  --from-literal=DB_PASSWORD=<password> \
   --from-literal=RABBITMQ_HOST=rabbitmq \
   --from-literal=RABBITMQ_PORT=5672 \
   --from-literal=RABBITMQ_VHOST=/ \
   --from-literal=RABBITMQ_USERNAME=<usuario_rabbitmq> \
   --from-literal=RABBITMQ_PASSWORD=<password_rabbitmq> \
+  --from-literal=RABBITMQ_USER=<usuario_rabbitmq> \
   --namespace=maestrias \
   --dry-run=client -o yaml > db-credentials-plain.yaml
 
@@ -280,12 +293,41 @@ rm db-credentials-plain.yaml
 
 Estos mismos `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD` deben coincidir con
 los que use el propio broker (`maestrias-rabbitmq-secrets`, con
-`RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` — pendiente de sellar).
+`RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS`):
 
-`leads` y `leadsdelivery` además necesitan su propio secret aparte
-(`maestrias-leads-secrets` con `RABBITMQ_*`, `maestrias-leadsdelivery-secrets`
-con `MAIL_*` y la URL interna de `whatsapp-gateway`) — esos sí son propios
-de cada uno, no se consolidan.
+```bash
+kubectl create secret generic maestrias-rabbitmq-secrets \
+  --from-literal=RABBITMQ_DEFAULT_USER=<usuario_rabbitmq> \
+  --from-literal=RABBITMQ_DEFAULT_PASS=<password_rabbitmq> \
+  --namespace=maestrias \
+  --dry-run=client -o yaml > rabbitmq-secrets-plain.yaml
+
+./bootstrap/seal-secret.sh rabbitmq-secrets-plain.yaml apps/maestrias/rabbitmq/rabbitmq-secrets.sealed.yaml
+rm rabbitmq-secrets-plain.yaml
+```
+
+`leadsdelivery` además necesita su propio secret aparte con lo único
+genuinamente sensible que le queda (el resto — URL de whatsapp-gateway,
+nombre de cola — ya son variables planas en su Deployment, no secretas):
+
+```bash
+kubectl create secret generic maestrias-leadsdelivery-secrets \
+  --from-literal=MAIL_HOST=<host_smtp> \
+  --from-literal=MAIL_PORT=<puerto_smtp> \
+  --from-literal=MAIL_USERNAME=<usuario_smtp> \
+  --from-literal=MAIL_PASSWORD=<password_smtp> \
+  --from-literal=MAIL_FROM_ADDRESS=<direccion_remitente> \
+  --from-literal=MAIL_FROM_NAME=<nombre_remitente> \
+  --namespace=maestrias \
+  --dry-run=client -o yaml > leadsdelivery-secrets-plain.yaml
+
+./bootstrap/seal-secret.sh leadsdelivery-secrets-plain.yaml apps/maestrias/leadsdelivery/leadsdelivery-secrets.sealed.yaml
+rm leadsdelivery-secrets-plain.yaml
+```
+
+`leads` ya no tiene secret propio: lo único que necesitaba además de la
+DB (`EM_LEADS_PROCESSOR_GATEWAY_URL`, `GOOGLE_CLIENT_ID`) no es sensible,
+así que quedó como variables de entorno planas directo en su Deployment.
 
 ---
 
@@ -294,12 +336,19 @@ de cada uno, no se consolidan.
 - [x] Definir gestión de Secrets — Sealed Secrets (controller vía GitOps en
       `clusters/contabo-vps/sealed-secrets-app.yaml`, helper
       `bootstrap/seal-secret.sh`)
-- [x] Sellar `maestrias-db-credentials` (DB compartida por postgrest,
-      leads, leadsprocessor, leadsdelivery y worker)
-- [ ] Sellar el resto de los `SealedSecret` de cada servicio (MinIO,
-      RabbitMQ, mail, `maestrias-leads-secrets` con RABBITMQ_*,
-      `maestrias-leadsdelivery-secrets` con MAIL_*/whatsapp) — hoy esos
-      `secretRef` de `apps/` siguen apuntando a Secrets que no existen
+- [x] Sellar `maestrias-db-credentials` (DB + RabbitMQ compartidos por
+      postgrest, leads, leadsprocessor, leadsdelivery y worker, con los
+      nombres reales de `application.yaml`, no los del workflow viejo)
+- [x] Corregir puertos internos de leads/leadsprocessor/leadsdelivery a
+      8080 (el `server.port` real de Spring; 8085/8081/8082 eran puertos
+      de host de podman-compose, no del contenedor)
+- [x] Sellar `maestrias-rabbitmq-secrets` (`RABBITMQ_DEFAULT_USER/PASS`)
+- [x] Sellar `maestrias-leadsdelivery-secrets` (`MAIL_*`)
+- [x] `web` no necesita secret propio — `PUBLIC_API_URL`/`PUBLIC_GOOGLE_CLIENT_ID`
+      son variables de build-time de Astro (horneadas en la imagen), no de
+      runtime; se eliminó el `secretRef: maestrias-web-secrets`
+- [ ] Sellar los Secrets que faltan (`galfiends-*`, `maestrias-minio-secrets`,
+      `maestrias-whatsapp-secrets`)
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
       `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,

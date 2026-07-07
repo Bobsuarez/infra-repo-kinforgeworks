@@ -22,12 +22,18 @@ spec:
           # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
           image: ghcr.io/bobsuarez/kindredworks/em-leads-delivery:latest
           ports:
-            - containerPort: 8082
+            - containerPort: 8080 # server.port real de Spring (no 8082)
+          env:
+            # No son secretos: URL interna del cluster y nombre de cola.
+            - name: WHATSAPP_GATEWAY_URL
+              value: http://whatsapp-gateway:3000/api/
+            - name: RABBITMQ_LEADS_QUEUE
+              value: leads-notification-queue
           envFrom:
             - secretRef:
                 name: maestrias-db-credentials # compartido, ver postgrest/statefulset.yaml
             - secretRef:
-                name: maestrias-leadsdelivery-secrets # MAIL_*, whatsapp-gateway URL interna, etc.
+                name: maestrias-leadsdelivery-secrets # MAIL_* (lo único genuinamente sensible acá)
           resources:
             requests:
               cpu: 150m
@@ -45,5 +51,5 @@ spec:
   selector:
     app: leadsdelivery
   ports:
-    - port: 8082
-      targetPort: 8082
+    - port: 8080
+      targetPort: 8080
