@@ -1,0 +1,53 @@
+# Broker interno (leads-import-queue, leads.notification.queue). Sin Ingress:
+# solo se consume dentro del namespace.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: maestrias
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # evita dos brokers escribiendo al mismo volumen a la vez
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3-management
+          envFrom:
+            - secretRef:
+                name: maestrias-rabbitmq-secrets # RABBITMQ_DEFAULT_USER / RABBITMQ_DEFAULT_PASS
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: maestrias
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672

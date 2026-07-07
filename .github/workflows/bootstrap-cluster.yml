@@ -1,0 +1,51 @@
+name: Bootstrap Cluster
+
+# Este workflow SOLO provisiona el clúster (k3s + ArgoCD + root-app).
+# NO se usa para desplegar cambios de apps/: eso lo hace ArgoCD solo,
+# al detectar git push (ver syncPolicy.automated en clusters/*/root-app.yaml).
+# Ver BOOTSTRAP_PROMPT.md para el detalle de cada paso.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "bootstrap/**"
+      - "clusters/**"
+      - ".github/workflows/bootstrap-cluster.yml"
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: works
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copiar scripts de bootstrap y manifests de cluster al VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "bootstrap/*,clusters/**"
+          target: "/opt/infra-repo-kinforgeworks"
+          strip_components: 0
+
+      - name: Ejecutar bootstrap (k3s -> ArgoCD -> root-app)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          # ARGOCD_REPO_TOKEN es opcional: solo hace falta si el repo es privado
+          # (PAT de solo lectura). Ver bootstrap/03-apply-root-app.sh.
+          envs: ARGOCD_REPO_TOKEN
+          script: |
+            set -euo pipefail
+            cd /opt/infra-repo-kinforgeworks
+            chmod +x bootstrap/*.sh
+            ./bootstrap/01-install-k3s.sh
+            ./bootstrap/02-install-argocd.sh
+            ./bootstrap/03-apply-root-app.sh
+        env:
+          ARGOCD_REPO_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}

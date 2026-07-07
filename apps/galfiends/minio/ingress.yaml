@@ -1,0 +1,25 @@
+# Expone solo la API S3 (para servir/subir PDFs e imágenes). La consola de
+# administración (9001) queda interna; usar port-forward para acceder a ella.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio
+  namespace: galfiends
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - cdn.galfiends.kinforgeworks.com
+  rules:
+    - host: cdn.galfiends.kinforgeworks.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000

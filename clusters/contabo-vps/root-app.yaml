@@ -1,0 +1,37 @@
+# "App of apps" vía ApplicationSet: cada carpeta de primer nivel bajo apps/
+# (galfiends, maestrias, ...) se convierte automáticamente en una Application
+# de ArgoCD, desplegada en su propio namespace del mismo nombre. Agregar un
+# proyecto nuevo es solo agregar una carpeta en apps/ y hacer push.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: root-app
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - git:
+        repoURL: https://github.com/Bobsuarez/infra-repo-kinforgeworks.git
+        revision: master
+        directories:
+          - path: apps/*
+  template:
+    metadata:
+      name: "{{.path.basename}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/Bobsuarez/infra-repo-kinforgeworks.git
+        targetRevision: master
+        path: "{{.path.path}}"
+        directory:
+          recurse: true
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{.path.basename}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

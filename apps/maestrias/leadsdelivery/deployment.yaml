@@ -1,0 +1,43 @@
+# Consumer RabbitMQ -> email/WhatsApp. Sin Ingress: no se expone al público.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leadsdelivery
+  namespace: maestrias
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leadsdelivery
+  template:
+    metadata:
+      labels:
+        app: leadsdelivery
+    spec:
+      containers:
+        - name: leadsdelivery
+          image: ghcr.io/bobsuarez/em-leadsdelivery:latest
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - secretRef:
+                name: maestrias-leadsdelivery-secrets # MAIL_*, whatsapp-gateway URL interna, etc.
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leadsdelivery
+  namespace: maestrias
+spec:
+  selector:
+    app: leadsdelivery
+  ports:
+    - port: 8082
+      targetPort: 8082

@@ -1,0 +1,28 @@
+# Quota más alta que galfiends: maestrias corre más componentes (leads,
+# leadsprocessor, leadsdelivery, worker, whatsapp-gateway, rabbitmq, web, db, minio).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: maestrias-quota
+  namespace: maestrias
+spec:
+  hard:
+    requests.cpu: "3"
+    requests.memory: 5Gi
+    limits.cpu: "5"
+    limits.memory: 7Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: maestrias-limits
+  namespace: maestrias
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      default:
+        cpu: 250m
+        memory: 256Mi

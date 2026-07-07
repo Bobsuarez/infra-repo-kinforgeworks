@@ -1,0 +1,35 @@
+# Puerta de entrada de maestrias: mismo host sirve el frontend (Astro/Vue) y,
+# bajo /api, la API de leads (Spring Boot) - replica el ruteo que hacía Caddy
+# en el monorepo original (kinforgeworks.com -> em-web + em-leads).
+# TODO: confirmar si el host real debe ser maestrias.kinforgeworks.com o el
+# dominio raíz kinforgeworks.com (el README nuevo usa subdominio por proyecto).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: maestrias
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - maestrias.kinforgeworks.com
+  rules:
+    - host: maestrias.kinforgeworks.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: leads
+                port:
+                  number: 8085
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 4321

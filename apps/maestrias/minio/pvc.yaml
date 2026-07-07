@@ -1,0 +1,14 @@
+# Instancia de MinIO aislada para maestrias (PDFs/imágenes de programas),
+# separada de la de galfiends por la misma razón: poder migrar a otro
+# servidor sin arrastrar storage ajeno.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: maestrias
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi # TODO: ajustar según volumen real

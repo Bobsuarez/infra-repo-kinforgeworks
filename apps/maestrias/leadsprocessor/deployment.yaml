@@ -1,0 +1,43 @@
+# Scheduler interno (leads PENDING -> RabbitMQ). Sin Ingress: no se expone al público.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leadsprocessor
+  namespace: maestrias
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leadsprocessor
+  template:
+    metadata:
+      labels:
+        app: leadsprocessor
+    spec:
+      containers:
+        - name: leadsprocessor
+          image: ghcr.io/bobsuarez/em-leadsprocessor:latest
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - secretRef:
+                name: maestrias-leadsprocessor-secrets
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leadsprocessor
+  namespace: maestrias
+spec:
+  selector:
+    app: leadsprocessor
+  ports:
+    - port: 8081
+      targetPort: 8081

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leads
+  namespace: maestrias
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leads
+  template:
+    metadata:
+      labels:
+        app: leads
+    spec:
+      containers:
+        - name: leads
+          image: ghcr.io/bobsuarez/em-leads:latest
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - secretRef:
+                name: maestrias-leads-secrets # DB_*, RABBITMQ_*, etc.
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leads
+  namespace: maestrias
+spec:
+  selector:
+    app: leads
+  ports:
+    - port: 8085
+      targetPort: 8085

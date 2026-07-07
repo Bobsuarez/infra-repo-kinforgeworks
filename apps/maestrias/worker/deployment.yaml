@@ -1,0 +1,30 @@
+# ETL Python (Excel/CSV -> PostgreSQL), consumer long-running de RabbitMQ.
+# No expone puerto: sin Service ni Ingress.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: maestrias
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/bobsuarez/em-worker:latest
+          envFrom:
+            - secretRef:
+                name: maestrias-worker-secrets
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,43 @@
+# Gateway HTTP -> WhatsApp Web, llamado internamente por leadsdelivery. Sin Ingress.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsapp-gateway
+  namespace: maestrias
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whatsapp-gateway
+  template:
+    metadata:
+      labels:
+        app: whatsapp-gateway
+    spec:
+      containers:
+        - name: whatsapp-gateway
+          image: ghcr.io/bobsuarez/em-whatsapp-gateway:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: maestrias-whatsapp-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsapp-gateway
+  namespace: maestrias
+spec:
+  selector:
+    app: whatsapp-gateway
+  ports:
+    - port: 3000
+      targetPort: 3000
