@@ -247,13 +247,12 @@ rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localment
 - [x] Corregir las rutas de imagen de maestrias al namespace real
       `ghcr.io/bobsuarez/kindredworks/em-*` (antes apuntaban a
       `ghcr.io/bobsuarez/em-*`, sin `kindredworks/`)
-- [ ] Confirmar si el pipeline de KindredWorks publica un tag flotante
-      (`:latest` o `:master`) además del `sha-<corto>@sha256:<digest>` — los
-      manifests hoy asumen `:latest`, marcado con TODO en cada Deployment
-- [x] Sellar `ghcr-pull-secret` en `maestrias`
-- [ ] Sellar `ghcr-pull-secret` en `galfiends` (paquetes de GHCR privados) —
-      ver sección "Caso especial: ghcr-pull-secret" arriba, sin esto los pods
-      quedan en `ImagePullBackOff` aunque el nombre de imagen sea correcto
+- [x] Confirmar si el pipeline de KindredWorks publica un tag flotante —
+      confirmado en GHCR que `:latest` existe junto al `sha-<corto>` para
+      `em-leads-processor`; asumimos que aplica igual al resto (mismo
+      pipeline), pendiente de verificar en los otros 5 paquetes si algo
+      sigue en `ImagePullBackOff` después de sellar el pull secret
+- [x] Sellar `ghcr-pull-secret` en `galfiends` y `maestrias`
 - [ ] Confirmar la ruta real de imagen de `apps/galfiends/micro` (hoy sigue
       siendo el placeholder `ghcr.io/bobsuarez/galfiends-micro:latest`)
 - [ ] Dar a `apps/galfiends/postgrest/` una base PostgreSQL propia (hoy
