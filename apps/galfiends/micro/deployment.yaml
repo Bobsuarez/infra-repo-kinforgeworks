@@ -14,6 +14,8 @@ spec:
       labels:
         app: micro
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret # ver README "Gestión de Secrets" - dockerconfigjson sellado
       containers:
         - name: micro
           image: ghcr.io/bobsuarez/galfiends-micro:latest

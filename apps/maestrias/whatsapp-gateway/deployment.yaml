@@ -14,9 +14,15 @@ spec:
       labels:
         app: whatsapp-gateway
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: whatsapp-gateway
-          image: ghcr.io/bobsuarez/em-whatsapp-gateway:latest
+          # Nombre real del contenedor en KindredWorks es "em-whatsapp-web"
+          # (ver CLAUDE.md), no "em-whatsapp-gateway".
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/kindredworks/em-whatsapp-web:latest
           ports:
             - containerPort: 3000
           envFrom:

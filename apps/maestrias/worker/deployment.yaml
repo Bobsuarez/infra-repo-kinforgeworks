@@ -15,9 +15,13 @@ spec:
       labels:
         app: worker
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: worker
-          image: ghcr.io/bobsuarez/em-worker:latest
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/kindredworks/em-worker:latest
           envFrom:
             - secretRef:
                 name: maestrias-worker-secrets
