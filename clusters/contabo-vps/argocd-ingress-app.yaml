@@ -1,0 +1,25 @@
+# Componente de plataforma (la UI del propio ArgoCD), por eso vive en
+# clusters/ y no en apps/*: una vez que ArgoCD existe, puede gestionar
+# recursos de su propio namespace vía GitOps igual que cualquier otra cosa.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-ingress
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Bobsuarez/infra-repo-kinforgeworks.git
+    targetRevision: master
+    path: clusters/contabo-vps/argocd-ingress
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -13,6 +13,22 @@ echo "==> Aplicando manifests de ArgoCD (stable)..."
 kubectl apply -n argocd --server-side --force-conflicts \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
+# argocd-server sirve HTTPS autofirmado por defecto; si lo exponemos detrás de
+# un Ingress que ya termina TLS (Traefik), eso genera un loop de redirects.
+# --insecure hace que sirva HTTP plano puertas adentro, tal como recomienda
+# la documentación oficial de ArgoCD para este escenario.
+echo "==> Configurando argocd-server en modo --insecure (TLS se termina en el Ingress)..."
+kubectl apply -n argocd -f - <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+data:
+  server.insecure: "true"
+EOF
+kubectl -n argocd rollout restart deployment argocd-server
+
 echo "==> Esperando a que los deployments de argocd estén disponibles..."
 kubectl -n argocd wait --for=condition=Available deployment --all --timeout=300s
 

@@ -31,6 +31,9 @@ fi
 echo "==> Aplicando sealed-secrets (controller de plataforma)..."
 kubectl apply -f "${SCRIPT_DIR}/../clusters/contabo-vps/sealed-secrets-app.yaml"
 
+echo "==> Aplicando Ingress de la UI de ArgoCD (argocd.kinforgeworks.com)..."
+kubectl apply -f "${SCRIPT_DIR}/../clusters/contabo-vps/argocd-ingress-app.yaml"
+
 echo "==> Aplicando root-app..."
 kubectl apply -f "${SCRIPT_DIR}/../clusters/contabo-vps/root-app.yaml"
 
