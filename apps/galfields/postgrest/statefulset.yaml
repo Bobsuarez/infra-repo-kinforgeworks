@@ -16,7 +16,12 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16
+          # postgres:15-alpine (no 16) para coincidir con la versión ya
+          # probada en el compose.yaml de pos-backend - streaming
+          # replication exige que primario y réplica sean la misma versión
+          # mayor, así que conviene alinear desde ya aunque la réplica se
+          # agregue después.
+          image: postgres:15-alpine
           envFrom:
             - secretRef:
                 name: galfields-db-credentials # compartido con micro (pos-backend)
@@ -25,6 +30,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            # Se ejecuta solo la primera vez (volumen de datos vacío). Ver
+            # init-schema-configmap.yaml: es un stand-in hasta que existan
+            # migraciones Flyway reales en el repo de pos-backend.
+            - name: init-schema
+              mountPath: /docker-entrypoint-initdb.d
           resources:
             requests:
               cpu: 150m
@@ -36,6 +46,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: db-primary-data
+        - name: init-schema
+          configMap:
+            name: db-primary-init-schema
 ---
 apiVersion: v1
 kind: Service

@@ -434,6 +434,27 @@ rm galfields-minio-secrets-plain.yaml
       valor)
 - [ ] Actualizar en Cloudflare los registros DNS de `galfiends.*` a
       `galfields.*` (fuera de este repo, acción manual pendiente)
+- [x] `apps/galfields/postgrest` alineado a `postgres:15-alpine` (no 16),
+      para coincidir con la versión ya probada en el `compose.yaml` de
+      `pos-backend` y ser compatible con streaming replication el día que
+      se agregue la réplica
+- [x] Schema inicial de `galfields` traducido de MySQL a Postgres y
+      montado como `ConfigMap` en `/docker-entrypoint-initdb.d/`
+      (`apps/galfields/postgrest/init-schema-configmap.yaml`) — es un
+      stand-in para poder probar `pos-backend` ya, **no reemplaza
+      migraciones Flyway reales**. Requiere borrar el PVC existente para
+      que se re-inicialice y el script corra (solo corre en un volumen
+      vacío)
+- [ ] **Pendiente de la app, no de infra**: cuando `pos-backend` tenga
+      migraciones Flyway reales en `src/main/resources/db/migration`
+      (sintaxis Postgres), borrar `init-schema-configmap.yaml` y el PVC de
+      `galfields` para que Flyway quede como única fuente de verdad del
+      schema, sin conflictos con el stand-in
+- [ ] Cuando se agregue la réplica de `galfields` (`gf-db-replica`): portar
+      `00_setup_replication.sh` a un `ConfigMap` montado en
+      `/docker-entrypoint-initdb.d/`, parametrizando la contraseña del
+      usuario `replicator` vía Secret en vez de dejarla hardcodeada en el
+      script (como está hoy en el compose.yaml de referencia)
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication
