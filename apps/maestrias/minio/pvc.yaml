@@ -1,5 +1,5 @@
 # Instancia de MinIO aislada para maestrias (PDFs/imágenes de programas),
-# separada de la de galfiends por la misma razón: poder migrar a otro
+# separada de la de galfields por la misma razón: poder migrar a otro
 # servidor sin arrastrar storage ajeno.
 apiVersion: v1
 kind: PersistentVolumeClaim

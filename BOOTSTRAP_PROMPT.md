@@ -60,7 +60,7 @@ verificando el resultado de cada paso antes de continuar al siguiente:
 
 4. **Aplicar el "root app"**
    - Ejecuta `kubectl apply -f clusters/contabo-vps/root-app.yaml`.
-   - Verifica en `argocd app list` que las aplicaciones hijas (galfiends,
+   - Verifica en `argocd app list` que las aplicaciones hijas (galfields,
      maestrias) aparezcan y comiencen a sincronizar.
    - Si alguna app queda en estado `Degraded` o `OutOfSync` por más de 2
      minutos, diagnostica con `kubectl describe` / `argocd app get <app>` y
@@ -70,7 +70,7 @@ verificando el resultado de cada paso antes de continuar al siguiente:
    - Confirma que Traefik (Ingress) tenga IP/puerto expuesto correctamente
      (`kubectl get svc -n kube-system traefik`).
    - Lista los Ingress creados y verifica que los hosts coincidan con los
-     subdominios esperados: galfiends.[DOMINIO], maestrias.[DOMINIO].
+     subdominios esperados: galfields.[DOMINIO], maestrias.[DOMINIO].
 
 6. **Reporte final**
    Al terminar, dame un resumen con:

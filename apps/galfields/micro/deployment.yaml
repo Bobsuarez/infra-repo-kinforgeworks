@@ -1,0 +1,45 @@
+# "micro" = el servicio real pos-backend (spring.application.name=pos),
+# imagen pública ghcr.io/bobsuarez/galfields/pos-backend.
+# Aún no se ha probado en su totalidad (aviso del dueño del servicio).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micro
+  namespace: galfields
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: micro
+  template:
+    metadata:
+      labels:
+        app: micro
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret # paquete público, pero no molesta dejarlo
+      containers:
+        - name: micro
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/galfields/pos-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            # No son secretos: endpoint/bucket de MinIO (mismo namespace).
+            - name: MINIO_ENDPOINT
+              value: http://minio:9000
+            - name: MINIO_BUCKET
+              value: galfields-products
+          envFrom:
+            - secretRef:
+                name: galfields-db-credentials # DB_*, compartido con postgrest/statefulset.yaml
+            - secretRef:
+                name: galfields-minio-secrets # MINIO_ACCESS_KEY/MINIO_SECRET_KEY (= root user/pass de MinIO)
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

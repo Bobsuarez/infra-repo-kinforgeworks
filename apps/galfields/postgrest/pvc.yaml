@@ -1,0 +1,15 @@
+# Nota de nombre: esta carpeta se llama "postgrest" por continuidad, pero
+# contiene Postgres puro (no la herramienta PostgREST) - mismo criterio que
+# apps/maestrias/postgrest/. Aislado del Postgres de maestrias a propósito
+# (ver README - Namespace por proyecto).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-primary-data
+  namespace: galfields
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi # TODO: ajustar según tamaño real de la DB de pos-backend

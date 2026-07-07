@@ -1,4 +1,4 @@
-# Quota más alta que galfiends: maestrias corre más componentes (leads,
+# Quota más alta que galfields: maestrias corre más componentes (leads,
 # leadsprocessor, leadsdelivery, worker, whatsapp-gateway, rabbitmq, web, db, minio).
 apiVersion: v1
 kind: ResourceQuota

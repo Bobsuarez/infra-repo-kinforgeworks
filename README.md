@@ -1,7 +1,7 @@
 # Infraestructura GitOps — k3s + ArgoCD
 
 Repositorio de infraestructura declarativa para el despliegue de los proyectos
-**Galfiends** y **Maestrías** sobre un clúster Kubernetes (k3s), gestionado
+**Galfield's** y **Maestrías** sobre un clúster Kubernetes (k3s), gestionado
 mediante GitOps con ArgoCD.
 
 Este repo es la **fuente de verdad**: cualquier VPS que ejecute
@@ -18,10 +18,10 @@ Cloudflare (DNS + proxy)
         │
         ▼
    k3s Ingress (Traefik)
-   ├── galfiends.kinforgeworks.com      → namespace: galfiends
-   │     ├── micro                        (público)
-   │     ├── cdn.galfiends.kinforgeworks.com → minio  (aislado, público)
-   │     └── api.galfiends.kinforgeworks.com → postgrest (aislado, público)
+   ├── galfields.kinforgeworks.com      → namespace: galfields
+   │     ├── micro (pos-backend)          (público)
+   │     ├── postgrest (PostgreSQL primary, aislado, interno)
+   │     └── cdn.galfields.kinforgeworks.com → minio  (aislado, público)
    └── maestrias.kinforgeworks.com      → namespace: maestrias
          ├── web                          (público, / )
          ├── leads                        (público, /api — mismo Ingress que web)
@@ -67,20 +67,20 @@ infra-repo-kinforgeworks/
 │       └── argocd-ingress/
 │           └── ingress.yaml       # argocd.kinforgeworks.com
 ├── apps/
-│   ├── galfiends/
+│   ├── galfields/
 │   │   ├── namespace.yaml
 │   │   ├── resource-quota.yaml
 │   │   ├── micro/
 │   │   │   ├── deployment.yaml
 │   │   │   ├── service.yaml
-│   │   │   └── ingress.yaml        # galfiends.kinforgeworks.com
+│   │   │   └── ingress.yaml        # galfields.kinforgeworks.com
 │   │   ├── minio/                  # instancia aislada (PVC + credenciales propias)
 │   │   │   ├── statefulset.yaml
 │   │   │   ├── pvc.yaml
-│   │   │   └── ingress.yaml        # cdn.galfiends.kinforgeworks.com
-│   │   └── postgrest/              # API PostgREST pública (sin DB propia todavía, ver Pendientes)
-│   │       ├── deployment.yaml
-│   │       └── ingress.yaml        # api.galfiends.kinforgeworks.com
+│   │   │   └── ingress.yaml        # cdn.galfields.kinforgeworks.com
+│   │   └── postgrest/              # PostgreSQL primary (StatefulSet), sin Ingress (no es HTTP)
+│   │       ├── statefulset.yaml
+│   │       └── pvc.yaml
 │   └── maestrias/
 │       ├── namespace.yaml
 │       ├── resource-quota.yaml
@@ -130,7 +130,7 @@ un pod extra mientras el viejo todavía no se apaga) queda bloqueado con
 tenga la imagen/config correcta. Nos pasó exactamente esto en
 `maestrias`: la suma de límites (5.25 CPU) superaba el propio
 `limits.cpu: "5"` del `ResourceQuota`, incluso antes de intentar ningún
-rollout. Con 6 vCPU compartidas entre `galfiends`, `maestrias` y la
+rollout. Con 6 vCPU compartidas entre `galfields`, `maestrias` y la
 plataforma (ArgoCD, Traefik, sealed-secrets), la regla práctica es dejar
 la suma de límites de cada namespace con margen de al menos ~30-40%
 respecto a su cuota.
@@ -218,7 +218,7 @@ todo Deployment que jala de ahí necesita un `imagePullSecrets: - name:
 ghcr-pull-secret` (ya está agregado en los manifests de `apps/`). Ese
 Secret es del mismo tipo que cualquier otro para Sealed Secrets, solo que
 `kubectl` lo genera con el formato `dockerconfigjson`. Hay que sellarlo
-**una vez por namespace** (galfiends y maestrias), con un Personal Access
+**una vez por namespace** (galfields y maestrias), con un Personal Access
 Token de GHCR con scope `read:packages`:
 
 ```bash
@@ -232,7 +232,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 ./bootstrap/seal-secret.sh ghcr-pull-secret-plain.yaml apps/maestrias/ghcr-pull-secret.sealed.yaml
 rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localmente
 
-# repetir cambiando --namespace=galfiends y la salida a apps/galfiends/ghcr-pull-secret.sealed.yaml
+# repetir cambiando --namespace=galfields y la salida a apps/galfields/ghcr-pull-secret.sealed.yaml
 ```
 
 ### Caso especial: `maestrias-db-credentials` (compartido entre Postgres y 4 servicios)
@@ -328,6 +328,48 @@ rm leadsdelivery-secrets-plain.yaml
 DB (`EM_LEADS_PROCESSOR_GATEWAY_URL`, `GOOGLE_CLIENT_ID`) no es sensible,
 así que quedó como variables de entorno planas directo en su Deployment.
 
+### Caso especial: `galfields-db-credentials` y `galfields-minio-secrets`
+
+Mismo patrón que en `maestrias`: `postgrest/statefulset.yaml` (Postgres) y
+`micro/deployment.yaml` (`pos-backend`) comparten `galfields-db-credentials`.
+Los nombres de variable salen de `application.properties` real de
+`pos-backend` — `DB_HOST` apunta al Service `db-primary` del namespace
+`galfields`:
+
+```bash
+kubectl create secret generic galfields-db-credentials \
+  --from-literal=POSTGRES_DB=<nombre_db> \
+  --from-literal=POSTGRES_USER=<usuario> \
+  --from-literal=POSTGRES_PASSWORD=<password> \
+  --from-literal=DB_HOST=db-primary \
+  --from-literal=DB_PORT=5432 \
+  --from-literal=DB_NAME=<nombre_db> \
+  --from-literal=DB_USERNAME=<usuario> \
+  --from-literal=DB_PASSWORD=<password> \
+  --namespace=galfields \
+  --dry-run=client -o yaml > galfields-db-credentials-plain.yaml
+
+./bootstrap/seal-secret.sh galfields-db-credentials-plain.yaml apps/galfields/postgrest/db-credentials.sealed.yaml
+rm galfields-db-credentials-plain.yaml
+```
+
+`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` que usa `pos-backend` son, en la
+práctica, el mismo usuario/password root del propio MinIO — por eso van
+en el mismo Secret que consume el `StatefulSet` de MinIO:
+
+```bash
+kubectl create secret generic galfields-minio-secrets \
+  --from-literal=MINIO_ROOT_USER=<usuario_minio> \
+  --from-literal=MINIO_ROOT_PASSWORD=<password_minio> \
+  --from-literal=MINIO_ACCESS_KEY=<usuario_minio> \
+  --from-literal=MINIO_SECRET_KEY=<password_minio> \
+  --namespace=galfields \
+  --dry-run=client -o yaml > galfields-minio-secrets-plain.yaml
+
+./bootstrap/seal-secret.sh galfields-minio-secrets-plain.yaml apps/galfields/minio/minio-secrets.sealed.yaml
+rm galfields-minio-secrets-plain.yaml
+```
+
 ---
 
 ## Pendientes / próximos pasos
@@ -354,11 +396,11 @@ así que quedó como variables de entorno planas directo en su Deployment.
 - [ ] Si el usuario/password de `maestrias-minio-secrets` no es
       `minioadmin`/`minioadmin`, agregar `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`
       con el valor real al secret de `leads` (hoy usa esos defaults)
-- [ ] Sellar los Secrets que faltan de `galfiends` (`galfiends-*`)
+- [ ] Sellar los Secrets que faltan de `galfields` (`galfields-*`)
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
-      (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
-      `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,
-      `api.galfiends.kinforgeworks.com`)
+      (`galfields.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
+      `cdn.kinforgeworks.com`, `cdn.galfields.kinforgeworks.com`,
+      `api.galfields.kinforgeworks.com`)
 - [ ] Crear en Cloudflare los registros DNS para los subdominios de arriba
       **+ `argocd.kinforgeworks.com`** apuntando a la IP del VPS (Traefik) —
       hoy solo existen, si acaso, `kinforgeworks.com` y los que ya usaba el
@@ -375,12 +417,22 @@ así que quedó como variables de entorno planas directo en su Deployment.
       `em-leads-processor`; asumimos que aplica igual al resto (mismo
       pipeline), pendiente de verificar en los otros 5 paquetes si algo
       sigue en `ImagePullBackOff` después de sellar el pull secret
-- [x] Sellar `ghcr-pull-secret` en `galfiends` y `maestrias`
-- [ ] Confirmar la ruta real de imagen de `apps/galfiends/micro` (hoy sigue
-      siendo el placeholder `ghcr.io/bobsuarez/galfiends-micro:latest`)
-- [ ] Dar a `apps/galfiends/postgrest/` una base PostgreSQL propia (hoy
-      solo tiene el deployment de PostgREST, apunta a una DB que aún no
-      existe en el namespace)
+- [x] Sellar `ghcr-pull-secret` en `galfields` y `maestrias`
+- [ ] Re-sellar `ghcr-pull-secret` de `galfields` (el que ya existía quedó
+      inválido al renombrar el namespace `galfiends`→`galfields` - Sealed
+      Secrets ata el cifrado a namespace+nombre; mismo comando de siempre,
+      ver "Caso especial: ghcr-pull-secret")
+- [x] `apps/galfields/micro` es el servicio real `pos-backend`
+      (`ghcr.io/bobsuarez/galfields/pos-backend` — "galfields" sin la "n",
+      distinto del namespace/dominio "galfields"), imagen pública, aún no
+      probado en su totalidad
+- [x] `apps/galfields/postgrest/` pasó a ser Postgres puro (como
+      `maestrias/postgrest/`), con su propio `StatefulSet`+`PVC` en vez del
+      Deployment de PostgREST que apuntaba a una DB inexistente
+- [ ] Sellar `galfields-db-credentials` (POSTGRES_*+DB_* compartido entre
+      `postgrest` y `micro`) y `galfields-minio-secrets`
+      (`MINIO_ROOT_USER/PASSWORD` + `MINIO_ACCESS_KEY/SECRET_KEY`, mismo
+      valor — ver sección de arriba, mismo mecanismo que `maestrias`)
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication
