@@ -1,4 +1,7 @@
-# TODO: reemplazar image por la ruta real en GHCR una vez exista el workflow de build/push.
+# "micro" = el servicio real pos-backend (spring.application.name=pos),
+# imagen pública ghcr.io/bobsuarez/galfields/pos-backend (ojo: "galfields",
+# sin la "n" - distinto del namespace/dominio "galfiends" de este repo).
+# Aún no se ha probado en su totalidad (aviso del dueño del servicio).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,15 +18,25 @@ spec:
         app: micro
     spec:
       imagePullSecrets:
-        - name: ghcr-pull-secret # ver README "Gestión de Secrets" - dockerconfigjson sellado
+        - name: ghcr-pull-secret # paquete público, pero no molesta dejarlo
       containers:
         - name: micro
-          image: ghcr.io/bobsuarez/galfiends-micro:latest
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/galfields/pos-backend:latest
           ports:
             - containerPort: 8080
+          env:
+            # No son secretos: endpoint/bucket de MinIO (mismo namespace).
+            - name: MINIO_ENDPOINT
+              value: http://minio:9000
+            - name: MINIO_BUCKET
+              value: galfields-products
           envFrom:
             - secretRef:
-                name: galfiends-micro-secrets # crear manualmente / sealed-secret (ver README "Pendientes")
+                name: galfiends-db-credentials # DB_*, compartido con postgrest/statefulset.yaml
+            - secretRef:
+                name: galfiends-minio-secrets # MINIO_ACCESS_KEY/MINIO_SECRET_KEY (= root user/pass de MinIO)
           resources:
             requests:
               cpu: 100m
