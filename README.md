@@ -344,8 +344,10 @@ así que quedó como variables de entorno planas directo en su Deployment.
       de host de podman-compose, no del contenedor)
 - [x] Sellar `maestrias-rabbitmq-secrets` (`RABBITMQ_DEFAULT_USER/PASS`)
 - [x] Sellar `maestrias-leadsdelivery-secrets` (`MAIL_*`)
-- [ ] Sellar los Secrets de MinIO/postgrest que faltan (`galfiends-*`,
-      `maestrias-minio-secrets`, `maestrias-web-secrets`,
+- [x] `web` no necesita secret propio — `PUBLIC_API_URL`/`PUBLIC_GOOGLE_CLIENT_ID`
+      son variables de build-time de Astro (horneadas en la imagen), no de
+      runtime; se eliminó el `secretRef: maestrias-web-secrets`
+- [ ] Sellar los Secrets que faltan (`galfiends-*`, `maestrias-minio-secrets`,
       `maestrias-whatsapp-secrets`)
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
