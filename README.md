@@ -241,31 +241,46 @@ rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localment
 `postgrest/statefulset.yaml` (el motor Postgres) y los Deployments de
 `leads`, `leadsprocessor`, `leadsdelivery` y `worker` referencian el
 **mismo** Secret `maestrias-db-credentials` — así los valores de usuario/
-contraseña de la DB viven en un solo lugar en vez de 5 copias que se
-pueden desincronizar. Cada consumidor espera el nombre de variable que ya
-usaba en el workflow viejo de podman-compose, así que el Secret trae
-claves repetidas apuntando al mismo valor (una para Postgres, otra para
-las apps Java). Importante: la URL JDBC debe apuntar al Service de
-Kubernetes `db-primary` (namespace `maestrias`), **no** a `em-db-primary`
-(ese era el nombre de contenedor en podman-compose, acá no existe):
+contraseña de la DB y de RabbitMQ viven en un solo lugar en vez de copias
+que se pueden desincronizar.
+
+**Importante — nombres de variable reales:** las apps Java NO leen
+`DB_URL_PRIMARY_VARIABLE_GIT` / `DB_USERNAME_VARIABLE_GIT` /
+`DB_PASSWORD_SECRET_GIT` (esos sufijos `_VARIABLE_GIT`/`_SECRET_GIT` eran
+solo el nombre que usaba el workflow viejo de GitHub Actions para leer sus
+propios secrets/vars y pasarlos a `podman-compose`). La app en sí, vía
+`application.properties`, espera `DB_URL_PRIMARY`, `DB_USER_PRIMARY`,
+`DB_PASSWORD_PRIMARY` — y además `RABBITMQ_HOST`, `RABBITMQ_PORT`,
+`RABBITMQ_VHOST`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD` (esto último
+también lo necesitan `leadsprocessor`/`leadsdelivery`/`worker`, no solo
+`leads`). La URL JDBC debe apuntar al Service de Kubernetes `db-primary`
+(namespace `maestrias`), **no** a `em-db-primary` (nombre de contenedor
+viejo de podman-compose, acá no existe). `RABBITMQ_HOST` apunta al
+Service `rabbitmq` del mismo namespace:
 
 ```bash
 kubectl create secret generic maestrias-db-credentials \
   --from-literal=POSTGRES_DB=<nombre_db> \
   --from-literal=POSTGRES_USER=<usuario> \
   --from-literal=POSTGRES_PASSWORD=<password> \
-  --from-literal=DB_NAME=<nombre_db> \
-  --from-literal=DB_USERNAME=<usuario> \
-  --from-literal=DB_PASSWORD=<password> \
-  --from-literal=DB_URL_PRIMARY_VARIABLE_GIT='jdbc:postgresql://db-primary:5432/<nombre_db>' \
-  --from-literal=DB_USERNAME_VARIABLE_GIT=<usuario> \
-  --from-literal=DB_PASSWORD_SECRET_GIT=<password> \
+  --from-literal=DB_URL_PRIMARY='jdbc:postgresql://db-primary:5432/<nombre_db>' \
+  --from-literal=DB_USER_PRIMARY=<usuario> \
+  --from-literal=DB_PASSWORD_PRIMARY=<password> \
+  --from-literal=RABBITMQ_HOST=rabbitmq \
+  --from-literal=RABBITMQ_PORT=5672 \
+  --from-literal=RABBITMQ_VHOST=/ \
+  --from-literal=RABBITMQ_USERNAME=<usuario_rabbitmq> \
+  --from-literal=RABBITMQ_PASSWORD=<password_rabbitmq> \
   --namespace=maestrias \
   --dry-run=client -o yaml > db-credentials-plain.yaml
 
 ./bootstrap/seal-secret.sh db-credentials-plain.yaml apps/maestrias/db-credentials.sealed.yaml
 rm db-credentials-plain.yaml
 ```
+
+Estos mismos `RABBITMQ_USERNAME`/`RABBITMQ_PASSWORD` deben coincidir con
+los que use el propio broker (`maestrias-rabbitmq-secrets`, con
+`RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` — pendiente de sellar).
 
 `leads` y `leadsdelivery` además necesitan su propio secret aparte
 (`maestrias-leads-secrets` con `RABBITMQ_*`, `maestrias-leadsdelivery-secrets`
