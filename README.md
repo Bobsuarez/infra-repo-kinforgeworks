@@ -279,9 +279,12 @@ de cada uno, no se consolidan.
 - [x] Definir gestión de Secrets — Sealed Secrets (controller vía GitOps en
       `clusters/contabo-vps/sealed-secrets-app.yaml`, helper
       `bootstrap/seal-secret.sh`)
-- [ ] Sellar y commitear los `SealedSecret` reales de cada servicio (DB,
-      MinIO, RabbitMQ, mail, WhatsApp) — hoy los `secretRef` de `apps/`
-      apuntan a Secrets que todavía no existen en el clúster
+- [x] Sellar `maestrias-db-credentials` (DB compartida por postgrest,
+      leads, leadsprocessor, leadsdelivery y worker)
+- [ ] Sellar el resto de los `SealedSecret` de cada servicio (MinIO,
+      RabbitMQ, mail, `maestrias-leads-secrets` con RABBITMQ_*,
+      `maestrias-leadsdelivery-secrets` con MAIL_*/whatsapp) — hoy esos
+      `secretRef` de `apps/` siguen apuntando a Secrets que no existen
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfiends.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
       `cdn.kinforgeworks.com`, `cdn.galfiends.kinforgeworks.com`,
