@@ -198,6 +198,30 @@ el pipeline para desencriptar.
   usan los manifests de `apps/` (el `SealedSecret` genera un `Secret` normal
   con el mismo nombre/namespace declarado en su metadata).
 
+### Caso especial: `ghcr-pull-secret` (pull de imágenes privadas)
+
+Los paquetes de `ghcr.io/bobsuarez/kindredworks/*` son privados, así que
+todo Deployment que jala de ahí necesita un `imagePullSecrets: - name:
+ghcr-pull-secret` (ya está agregado en los manifests de `apps/`). Ese
+Secret es del mismo tipo que cualquier otro para Sealed Secrets, solo que
+`kubectl` lo genera con el formato `dockerconfigjson`. Hay que sellarlo
+**una vez por namespace** (galfiends y maestrias), con un Personal Access
+Token de GHCR con scope `read:packages`:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<tu-usuario-github> \
+  --docker-password=<PAT con read:packages> \
+  --namespace=maestrias \
+  --dry-run=client -o yaml > ghcr-pull-secret-plain.yaml
+
+./bootstrap/seal-secret.sh ghcr-pull-secret-plain.yaml apps/maestrias/ghcr-pull-secret.sealed.yaml
+rm ghcr-pull-secret-plain.yaml   # no dejar el texto plano ni siquiera localmente
+
+# repetir cambiando --namespace=galfiends y la salida a apps/galfiends/ghcr-pull-secret.sealed.yaml
+```
+
 ---
 
 ## Pendientes / próximos pasos
@@ -220,9 +244,18 @@ el pipeline para desencriptar.
       `ARGOCD_REPO_TOKEN` (PAT de solo lectura) en el Environment `works`;
       sin él, `03-apply-root-app.sh` asume repo público y el
       `ApplicationSet` no podrá clonarlo
-- [ ] Reemplazar las imágenes placeholder `ghcr.io/bobsuarez/...:latest`
-      por las rutas reales una vez exista el build/push a GHCR de cada
-      servicio
+- [x] Corregir las rutas de imagen de maestrias al namespace real
+      `ghcr.io/bobsuarez/kindredworks/em-*` (antes apuntaban a
+      `ghcr.io/bobsuarez/em-*`, sin `kindredworks/`)
+- [ ] Confirmar si el pipeline de KindredWorks publica un tag flotante
+      (`:latest` o `:master`) además del `sha-<corto>@sha256:<digest>` — los
+      manifests hoy asumen `:latest`, marcado con TODO en cada Deployment
+- [ ] Sellar `ghcr-pull-secret` en `galfiends` y `maestrias` (paquetes de
+      GHCR privados) — ver sección "Caso especial: ghcr-pull-secret" arriba,
+      sin esto los pods quedan en `ImagePullBackOff` aunque el nombre de
+      imagen sea correcto
+- [ ] Confirmar la ruta real de imagen de `apps/galfiends/micro` (hoy sigue
+      siendo el placeholder `ghcr.io/bobsuarez/galfiends-micro:latest`)
 - [ ] Dar a `apps/galfiends/postgrest/` una base PostgreSQL propia (hoy
       solo tiene el deployment de PostgREST, apunta a una DB que aún no
       existe en el namespace)

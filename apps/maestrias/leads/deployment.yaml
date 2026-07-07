@@ -13,9 +13,13 @@ spec:
       labels:
         app: leads
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret # ver README "Gestión de Secrets" - dockerconfigjson sellado
       containers:
         - name: leads
-          image: ghcr.io/bobsuarez/em-leads:latest
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/kindredworks/em-leads:latest
           ports:
             - containerPort: 8085
           envFrom:

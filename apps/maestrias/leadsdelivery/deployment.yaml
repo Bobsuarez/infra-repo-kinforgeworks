@@ -14,9 +14,13 @@ spec:
       labels:
         app: leadsdelivery
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: leadsdelivery
-          image: ghcr.io/bobsuarez/em-leadsdelivery:latest
+          # TODO: confirmar si :latest existe como tag flotante (el pipeline
+          # publica sha-<corto>@sha256:<digest>); si no, fijar un sha real.
+          image: ghcr.io/bobsuarez/kindredworks/em-leads-delivery:latest
           ports:
             - containerPort: 8082
           envFrom:
