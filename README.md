@@ -370,6 +370,66 @@ kubectl create secret generic galfields-minio-secrets \
 rm galfields-minio-secrets-plain.yaml
 ```
 
+### Caso especial: `galfields-backup-rclone-config` (backup externo a Google Drive)
+
+A diferencia de los demás secrets, este no se arma con `--from-literal`:
+contiene un `rclone.conf` con un token OAuth de Google Drive que solo se
+puede generar autorizando por navegador. **Se genera en tu compu, nunca
+en el VPS ni pegado en un chat**:
+
+```bash
+rclone config
+# crear un remote llamado "gdrive", tipo "drive" (Google Drive)
+# scope recomendado: drive.file (solo archivos creados por esta app,
+# no acceso a todo el Drive del usuario)
+# autorizar por navegador cuando lo pida
+
+kubectl create secret generic galfields-backup-rclone-config \
+  --from-file=rclone.conf=$HOME/.config/rclone/rclone.conf \
+  --namespace=galfields \
+  --dry-run=client -o yaml > rclone-secret-plain.yaml
+
+./bootstrap/seal-secret.sh rclone-secret-plain.yaml apps/galfields/postgrest/backup-rclone-config.sealed.yaml
+rm rclone-secret-plain.yaml
+```
+
+El remote debe llamarse exactamente `gdrive` (nombre que usa
+`backup-cronjob.yaml` al invocar `rclone copy`/`rclone delete`).
+
+---
+
+## Backups de PostgreSQL (`galfields`)
+
+`db-primary` corre en un solo pod sobre un PVC del mismo VPS — igual que
+el MinIO del namespace. Ninguno de los dos sobrevive a la pérdida del VPS,
+así que `apps/galfields/postgrest/backup-cronjob.yaml` saca copias fuera
+del cluster:
+
+- **Cuándo:** `CronJob` a las 12:00pm y 9:00pm hora `America/Bogota`
+  (`schedule: "0 12,21 * * *"`, `timeZone: America/Bogota`).
+- **Cómo:** un `initContainer` corre `pg_dump | gzip` contra el Service
+  `db-primary` usando el mismo Secret `galfields-db-credentials` del
+  StatefulSet, y un container `rclone/rclone` sube el archivo a
+  `gdrive:galfields-backups/`.
+- **Retención:** 30 días (`rclone delete --min-age 30d` al final de cada
+  corrida).
+- **Requiere:** el Secret `galfields-backup-rclone-config` — ver la
+  sección "Caso especial" arriba, hay que generarlo manualmente antes de
+  que el primer `CronJob` corra exitosamente.
+
+**Restaurar un backup:**
+```bash
+gunzip -c galfields-YYYYMMDD-HHMMSS.sql.gz | \
+  kubectl exec -i -n galfields db-primary-0 -- psql -U $POSTGRES_USER -d $POSTGRES_DB
+```
+
+**Probar sin esperar al cron:**
+```bash
+kubectl create job --from=cronjob/galfields-db-backup manual-test-1 -n galfields
+kubectl logs -n galfields job/manual-test-1 -c pg-dump
+kubectl logs -n galfields job/manual-test-1 -c upload
+```
+
 ---
 
 ## Pendientes / próximos pasos
@@ -458,6 +518,10 @@ rm galfields-minio-secrets-plain.yaml
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication
+- [ ] Sellar `galfields-backup-rclone-config` (requiere autorizar rclone
+      con Google Drive localmente y correr `seal-secret.sh` — ver sección
+      "Backups de PostgreSQL"); hasta entonces `backup-cronjob.yaml` está
+      aplicado pero el container `upload` va a fallar por falta del Secret
 - [ ] Configurar `cert-manager` si se requiere TLS end-to-end (fuera del
       modo "Full" de Cloudflare)
 - [ ] Definir política de sync de ArgoCD (automática vs manual) por ambiente

@@ -1,0 +1,75 @@
+# Backup de Postgres fuera del cluster (Google Drive), 2 veces al día.
+# Requiere el Secret galfields-backup-rclone-config (ver README, sección
+# "Backups de PostgreSQL") - no se genera acá porque contiene un token de
+# OAuth que no debe pasar por git en texto plano.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: galfields-db-backup
+  namespace: galfields
+spec:
+  schedule: "0 12,21 * * *"
+  timeZone: America/Bogota
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: pg-dump
+              image: postgres:15-alpine
+              envFrom:
+                - secretRef:
+                    name: galfields-db-credentials
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+                    -h db-primary -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                    | gzip > "/backup/galfields-$(date +%Y%m%d-%H%M%S).sql.gz"
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+          containers:
+            - name: upload
+              image: rclone/rclone:latest
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  rclone copy /backup gdrive:galfields-backups/ \
+                    --config /config/rclone/rclone.conf
+                  rclone delete gdrive:galfields-backups/ \
+                    --min-age 7d --config /config/rclone/rclone.conf
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: rclone-config
+                  mountPath: /config/rclone
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+          volumes:
+            - name: backup
+              emptyDir: {}
+            - name: rclone-config
+              secret:
+                secretName: galfields-backup-rclone-config
