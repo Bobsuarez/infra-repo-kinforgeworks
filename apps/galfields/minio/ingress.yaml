@@ -7,6 +7,7 @@ metadata:
   namespace: galfields
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: galfields-minio-bucket-prefix@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
