@@ -17,184 +17,276 @@ metadata:
   namespace: galfields
 data:
   01_schema.sql: |
-    CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+    CREATE
+    OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
     BEGIN
-      NEW.updated_at = CURRENT_TIMESTAMP;
-      RETURN NEW;
+        NEW.updated_at
+    = CURRENT_TIMESTAMP;
+    RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql;
+        $$
+    LANGUAGE plpgsql;
 
-    CREATE OR REPLACE FUNCTION set_last_updated() RETURNS TRIGGER AS $$
+        CREATE
+    OR REPLACE FUNCTION set_last_updated() RETURNS TRIGGER AS $$
     BEGIN
-      NEW.last_updated = CURRENT_TIMESTAMP;
-      RETURN NEW;
+        NEW.last_updated
+    = CURRENT_TIMESTAMP;
+    RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql;
+        $$
+    LANGUAGE plpgsql;
 
     CREATE TYPE payment_status_enum AS ENUM ('Pending', 'Paid', 'Partial', 'Cancelled');
     CREATE TYPE purchase_order_status_enum AS ENUM ('Pending', 'Received', 'Cancelled', 'Partial');
 
     -- 1. Tablas de referencia y configuración
-    CREATE TABLE categories (
-        category_id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
+    CREATE TABLE categories
+    (
+        category_id BIGSERIAL PRIMARY KEY,
+        name        VARCHAR(100) NOT NULL,
         description TEXT,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE brands
+    (
+        brand_id   BIGSERIAL PRIMARY KEY,
+        name       VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE brands (
-        brand_id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE employee_roles (
-        role_id SERIAL PRIMARY KEY,
-        role_name VARCHAR(50) NOT NULL,
+    CREATE TABLE employee_roles
+    (
+        role_id     BIGSERIAL PRIMARY KEY,
+        role_name   VARCHAR(50) NOT NULL,
         permissions JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE payment_methods (
-        payment_method_id SERIAL PRIMARY KEY,
-        method_name VARCHAR(50) NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE payment_methods
+    (
+        payment_method_id BIGSERIAL PRIMARY KEY,
+        method_name       VARCHAR(50) NOT NULL,
+        is_active         BOOLEAN   DEFAULT TRUE,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE locations (
-        location_id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        address TEXT,
-        phone VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE attach_files
+    (
+        attach_files_id BIGSERIAL PRIMARY KEY,
+        name            varchar(255) NOT NULL,
+        url             text         NOT NULL,
+        mime_type       varchar(100) NOT NULL,
+        size            INT          NOT NULL,
+        create_at       timestamp DEFAULT CURRENT_TIMESTAMP
+    );
+
+
+    CREATE TABLE locations
+    (
+        location_id BIGSERIAL PRIMARY KEY,
+        name        VARCHAR(100) NOT NULL,
+        address     TEXT,
+        phone       VARCHAR(20),
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     -- 2. Personas (empleados, clientes, proveedores)
-    CREATE TABLE employees (
-        employee_id SERIAL PRIMARY KEY,
-        first_name VARCHAR(50) NOT NULL,
-        last_name VARCHAR(50) NOT NULL,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role_id INT REFERENCES employee_roles(role_id),
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE employees
+    (
+        employee_id   BIGSERIAL PRIMARY KEY,
+        first_name    VARCHAR(50)        NOT NULL,
+        last_name     VARCHAR(50)        NOT NULL,
+        username      VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(255)       NOT NULL,
+        role_id       BIGSERIAL REFERENCES employee_roles (role_id),
+        logo_image    BIGSERIAL REFERENCES attach_files (attach_files_id),
+        is_active     BOOLEAN   DEFAULT TRUE,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE customers (
-        customer_id SERIAL PRIMARY KEY,
-        first_name VARCHAR(50) NOT NULL,
-        last_name VARCHAR(50) NOT NULL,
-        email VARCHAR(100) UNIQUE,
-        phone_number VARCHAR(20),
-        address TEXT,
-        loyalty_points INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE customers
+    (
+        customer_id    BIGSERIAL PRIMARY KEY,
+        first_name     VARCHAR(50) NOT NULL,
+        last_name      VARCHAR(50) NOT NULL,
+        email          VARCHAR(100) UNIQUE,
+        phone_number   VARCHAR(20),
+        address        TEXT,
+        loyalty_points INT       DEFAULT 0,
+        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE suppliers (
-        supplier_id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
+    CREATE TABLE suppliers
+    (
+        supplier_id    BIGSERIAL PRIMARY KEY,
+        name           VARCHAR(100) NOT NULL,
         contact_person VARCHAR(100),
-        phone_number VARCHAR(20),
-        email VARCHAR(100),
-        address TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        phone_number   VARCHAR(20),
+        email          VARCHAR(100),
+        address        TEXT,
+        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     -- 3. Productos y variantes
-    CREATE TABLE products (
-        product_id SERIAL PRIMARY KEY,
-        name VARCHAR(150) NOT NULL,
+    CREATE TABLE products
+    (
+        product_id  BIGSERIAL PRIMARY KEY,
+        name        VARCHAR(150) NOT NULL,
         description TEXT,
-        category_id INT REFERENCES categories(category_id),
-        brand_id INT REFERENCES brands(brand_id),
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        category_id BIGSERIAL REFERENCES categories (category_id),
+        brand_id    BIGSERIAL REFERENCES brands (brand_id),
+        is_active   BOOLEAN   DEFAULT TRUE,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
+    CREATE TRIGGER trg_products_updated_at
+        BEFORE UPDATE
+        ON products
         FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-    CREATE TABLE product_variants (
-        variant_id SERIAL PRIMARY KEY,
-        product_id INT NOT NULL REFERENCES products(product_id),
-        sku VARCHAR(50) UNIQUE NOT NULL,
-        attribute_name VARCHAR(50),
-        attribute_value VARCHAR(50),
-        price DECIMAL(15, 2) NOT NULL,
-        cost_price DECIMAL(15, 2) NOT NULL,
-        barcode VARCHAR(100) UNIQUE,
-        is_active BOOLEAN DEFAULT TRUE
+    CREATE TABLE product_images
+    (
+        id            BIGSERIAL PRIMARY KEY,
+        product_id    BIGSERIAL UNIQUE NOT NULL REFERENCES products (product_id),
+        image_product BIGSERIAL        NOT NULL REFERENCES attach_files (attach_files_id),
+        create_at     timestamp DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE product_variants
+    (
+        variant_id BIGSERIAL PRIMARY KEY,
+        product_id BIGSERIAL          NOT NULL REFERENCES products (product_id),
+        sku        VARCHAR(50) UNIQUE NOT NULL,
+        price      DECIMAL(15, 2)     NOT NULL,
+        cost_price DECIMAL(15, 2)     NOT NULL,
+        barcode    VARCHAR(100) UNIQUE,
+        is_active  BOOLEAN DEFAULT TRUE
+    );
+
+    CREATE TABLE variant_attributes
+    (
+        variant_attribute_id BIGSERIAL PRIMARY KEY,
+        variant_id           BIGSERIAL   NOT NULL REFERENCES product_variants (variant_id) ON DELETE CASCADE,
+        attribute_name       VARCHAR(50) NOT NULL,
+        attribute_value      VARCHAR(50) NOT NULL,
+        UNIQUE (variant_id, attribute_name) -- Una variante no puede tener el mismo atributo dos veces
+    );
+
+
+    CREATE TABLE product_variants_images
+    (
+        id               BIGSERIAL PRIMARY KEY,
+        product_variants BIGSERIAL UNIQUE NOT NULL REFERENCES product_variants (variant_id),
+        image_product    BIGSERIAL        NOT NULL REFERENCES attach_files (attach_files_id),
+        create_at        timestamp DEFAULT CURRENT_TIMESTAMP
     );
 
     -- 4. Inventario por ubicación
-    CREATE TABLE inventory (
-        inventory_id SERIAL PRIMARY KEY,
-        variant_id INT NOT NULL REFERENCES product_variants(variant_id),
-        location_id INT NOT NULL REFERENCES locations(location_id),
-        quantity_on_hand INT DEFAULT 0,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(variant_id, location_id)
+    CREATE TABLE inventory
+    (
+        inventory_id     BIGSERIAL PRIMARY KEY,
+        variant_id       BIGSERIAL NOT NULL REFERENCES product_variants (variant_id),
+        location_id      BIGSERIAL NOT NULL REFERENCES locations (location_id),
+        quantity_on_hand INT       DEFAULT 0,
+        last_updated     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (variant_id, location_id)
     );
-    CREATE TRIGGER trg_inventory_last_updated BEFORE UPDATE ON inventory
+    CREATE TRIGGER trg_inventory_last_updated
+        BEFORE UPDATE
+        ON inventory
         FOR EACH ROW EXECUTE FUNCTION set_last_updated();
 
     -- 5. Transacciones de venta
-    CREATE TABLE sales_transactions (
-        transaction_id SERIAL PRIMARY KEY,
-        transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        employee_id INT NOT NULL REFERENCES employees(employee_id),
-        customer_id INT REFERENCES customers(customer_id),
-        total_amount DECIMAL(15, 2) NOT NULL,
-        discount_amount DECIMAL(15, 2) DEFAULT 0,
-        tax_amount DECIMAL(15, 2) DEFAULT 0,
-        payment_status payment_status_enum DEFAULT 'Pending',
-        location_id INT NOT NULL REFERENCES locations(location_id)
+    CREATE TABLE sales_transactions
+    (
+        transaction_id   BIGSERIAL PRIMARY KEY,
+        transaction_date TIMESTAMP           DEFAULT CURRENT_TIMESTAMP,
+        employee_id      BIGSERIAL      NOT NULL REFERENCES employees (employee_id),
+        customer_id      BIGSERIAL REFERENCES customers (customer_id),
+        total_amount     DECIMAL(15, 2) NOT NULL,
+        discount_amount  DECIMAL(15, 2)      DEFAULT 0,
+        tax_amount       DECIMAL(15, 2)      DEFAULT 0,
+        payment_status   payment_status_enum DEFAULT 'Pending',
+        location_id      BIGSERIAL      NOT NULL REFERENCES locations (location_id)
     );
 
-    CREATE TABLE sale_items (
-        sale_item_id SERIAL PRIMARY KEY,
-        transaction_id INT NOT NULL REFERENCES sales_transactions(transaction_id),
-        variant_id INT NOT NULL REFERENCES product_variants(variant_id),
-        quantity INT NOT NULL,
-        unit_price DECIMAL(15, 2) NOT NULL,
+    CREATE TABLE sale_items
+    (
+        sale_item_id      BIGSERIAL PRIMARY KEY,
+        transaction_id    BIGSERIAL      NOT NULL REFERENCES sales_transactions (transaction_id),
+        variant_id        BIGSERIAL      NOT NULL REFERENCES product_variants (variant_id),
+        quantity          INT            NOT NULL,
+        unit_price        DECIMAL(15, 2) NOT NULL,
         discount_per_item DECIMAL(15, 2) DEFAULT 0,
-        subtotal DECIMAL(15, 2) NOT NULL
+        subtotal          DECIMAL(15, 2) NOT NULL
     );
 
-    CREATE TABLE payments (
-        payment_id SERIAL PRIMARY KEY,
-        transaction_id INT NOT NULL REFERENCES sales_transactions(transaction_id),
-        payment_method_id INT NOT NULL REFERENCES payment_methods(payment_method_id),
-        amount DECIMAL(15, 2) NOT NULL,
-        payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        reference_number VARCHAR(100)
+    CREATE TABLE payments
+    (
+        payment_id        BIGSERIAL PRIMARY KEY,
+        transaction_id    BIGSERIAL      NOT NULL REFERENCES sales_transactions (transaction_id),
+        payment_method_id BIGSERIAL      NOT NULL REFERENCES payment_methods (payment_method_id),
+        amount            DECIMAL(15, 2) NOT NULL,
+        payment_date      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reference_number  VARCHAR(100)
     );
 
     -- 6. Órdenes de compra (abastecimiento)
-    CREATE TABLE purchase_orders (
-        purchase_order_id SERIAL PRIMARY KEY,
-        supplier_id INT NOT NULL REFERENCES suppliers(supplier_id),
-        order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CREATE TABLE purchase_orders
+    (
+        purchase_order_id      BIGSERIAL PRIMARY KEY,
+        supplier_id            BIGSERIAL      NOT NULL REFERENCES suppliers (supplier_id),
+        order_date             TIMESTAMP                  DEFAULT CURRENT_TIMESTAMP,
         expected_delivery_date TIMESTAMP,
-        status purchase_order_status_enum DEFAULT 'Pending',
-        total_amount DECIMAL(15, 2) NOT NULL
+        status                 purchase_order_status_enum DEFAULT 'Pending',
+        total_amount           DECIMAL(15, 2) NOT NULL
     );
 
-    CREATE TABLE purchase_order_items (
-        po_item_id SERIAL PRIMARY KEY,
-        purchase_order_id INT NOT NULL REFERENCES purchase_orders(purchase_order_id),
-        variant_id INT NOT NULL REFERENCES product_variants(variant_id),
-        quantity INT NOT NULL,
-        cost_price DECIMAL(15, 2) NOT NULL,
+    CREATE TABLE purchase_order_items
+    (
+        po_item_id        BIGSERIAL PRIMARY KEY,
+        purchase_order_id BIGSERIAL      NOT NULL REFERENCES purchase_orders (purchase_order_id),
+        variant_id        BIGSERIAL      NOT NULL REFERENCES product_variants (variant_id),
+        quantity          INT            NOT NULL,
+        cost_price        DECIMAL(15, 2) NOT NULL,
         received_quantity INT DEFAULT 0
     );
 
+
     -- 7. Índices
-    CREATE INDEX idx_product_category ON products(category_id);
-    CREATE INDEX idx_variant_sku ON product_variants(sku);
-    CREATE INDEX idx_variant_barcode ON product_variants(barcode);
-    CREATE INDEX idx_sale_transaction_date ON sales_transactions(transaction_date);
-    CREATE INDEX idx_inventory_variant_location ON inventory(variant_id, location_id);
+    -- En tablas de Personas y Productos
+    CREATE INDEX idx_employees_role_id ON employees (role_id);
+    CREATE INDEX idx_products_category_id ON products (category_id);
+    CREATE INDEX idx_products_brand_id ON products (brand_id);
+    CREATE INDEX idx_product_variants_product_id ON product_variants (product_id);
+
+    -- En Transacciones de Venta (Vital para el módulo de facturación y reportes)
+    CREATE INDEX idx_sales_transactions_employee_id ON sales_transactions (employee_id);
+    CREATE INDEX idx_sales_transactions_customer_id ON sales_transactions (customer_id);
+    CREATE INDEX idx_sales_transactions_location_id ON sales_transactions (location_id);
+
+    -- En el Detalle de Ventas e Inventario
+    CREATE INDEX idx_sale_items_transaction_id ON sale_items (transaction_id);
+    CREATE INDEX idx_sale_items_variant_id ON sale_items (variant_id);
+    CREATE INDEX idx_payments_transaction_id ON payments (transaction_id);
+    CREATE INDEX idx_payments_method_id ON payments (payment_method_id);
+
+    -- En Compras / Abastecimiento
+    CREATE INDEX idx_purchase_orders_supplier_id ON purchase_orders (supplier_id);
+    CREATE INDEX idx_purchase_order_items_po_id ON purchase_order_items (purchase_order_id);
+    CREATE INDEX idx_purchase_order_items_variant_id ON purchase_order_items (variant_id);
+
+    -- 1. Indexar stock por sucursal y variante
+    CREATE INDEX idx_inventory_location_variant ON inventory (location_id, variant_id);
+
+    -- 2. Indexar ventas por sucursal e historial de fechas
+    CREATE INDEX idx_sales_location_date ON sales_transactions (location_id, transaction_date);
+
+    -- 3. Indexar búsquedas de atributos de productos
+    CREATE INDEX idx_variant_attributes_lookup ON variant_attributes (attribute_name, attribute_value);
+
+    -- 4. Índice optimizado para Login de empleados activos
+    CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
+
