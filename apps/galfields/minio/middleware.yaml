@@ -1,0 +1,11 @@
+# Antepone el nombre del bucket (fijado por MINIO_BUCKET en apps/galfields/micro/deployment.yaml)
+# antes de que la petición llegue a MinIO, ya que el Ingress reenvía la ruta tal cual.
+# cdn.galfields.kinforgeworks.com/foo.jpg -> minio:9000/galfields-products/foo.jpg
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: minio-bucket-prefix
+  namespace: galfields
+spec:
+  addPrefix:
+    prefix: /galfields-products

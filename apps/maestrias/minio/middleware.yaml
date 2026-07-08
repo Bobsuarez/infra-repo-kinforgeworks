@@ -1,0 +1,13 @@
+# Equivalente al `rewrite * /programs-assets{uri}` que hacía el Caddy viejo:
+# el Ingress reenvía la ruta tal cual a MinIO, así que hay que anteponer el
+# nombre del bucket antes de que la petición llegue al backend S3.
+# cdn.kinforgeworks.com/programs/foo.pdf -> minio:9000/programs-assets/programs/foo.pdf
+# cdn.kinforgeworks.com/files/foo.jpg    -> minio:9000/programs-assets/files/foo.jpg
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: minio-bucket-prefix
+  namespace: maestrias
+spec:
+  addPrefix:
+    prefix: /programs-assets
