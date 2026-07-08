@@ -100,8 +100,8 @@ data:
         last_name     VARCHAR(50)        NOT NULL,
         username      VARCHAR(50) UNIQUE NOT NULL,
         password_hash VARCHAR(255)       NOT NULL,
-        role_id       BIGSERIAL REFERENCES employee_roles (role_id),
-        logo_image    BIGSERIAL REFERENCES attach_files (attach_files_id),
+        role_id       BIGINT REFERENCES employee_roles (role_id),
+        logo_image    BIGINT REFERENCES attach_files (attach_files_id),
         is_active     BOOLEAN   DEFAULT TRUE,
         created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -135,8 +135,8 @@ data:
         product_id  BIGSERIAL PRIMARY KEY,
         name        VARCHAR(150) NOT NULL,
         description TEXT,
-        category_id BIGSERIAL REFERENCES categories (category_id),
-        brand_id    BIGSERIAL REFERENCES brands (brand_id),
+        category_id BIGINT REFERENCES categories (category_id),
+        brand_id    BIGINT REFERENCES brands (brand_id),
         is_active   BOOLEAN   DEFAULT TRUE,
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -149,15 +149,15 @@ data:
     CREATE TABLE product_images
     (
         id            BIGSERIAL PRIMARY KEY,
-        product_id    BIGSERIAL UNIQUE NOT NULL REFERENCES products (product_id),
-        image_product BIGSERIAL        NOT NULL REFERENCES attach_files (attach_files_id),
+        product_id    BIGINT UNIQUE NOT NULL REFERENCES products (product_id),
+        image_product BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
         create_at     timestamp DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE product_variants
     (
         variant_id BIGSERIAL PRIMARY KEY,
-        product_id BIGSERIAL          NOT NULL REFERENCES products (product_id),
+        product_id BIGINT          NOT NULL REFERENCES products (product_id),
         sku        VARCHAR(50) UNIQUE NOT NULL,
         price      DECIMAL(15, 2)     NOT NULL,
         cost_price DECIMAL(15, 2)     NOT NULL,
@@ -168,7 +168,7 @@ data:
     CREATE TABLE variant_attributes
     (
         variant_attribute_id BIGSERIAL PRIMARY KEY,
-        variant_id           BIGSERIAL   NOT NULL REFERENCES product_variants (variant_id) ON DELETE CASCADE,
+        variant_id           BIGINT   NOT NULL REFERENCES product_variants (variant_id) ON DELETE CASCADE,
         attribute_name       VARCHAR(50) NOT NULL,
         attribute_value      VARCHAR(50) NOT NULL,
         UNIQUE (variant_id, attribute_name) -- Una variante no puede tener el mismo atributo dos veces
@@ -178,8 +178,8 @@ data:
     CREATE TABLE product_variants_images
     (
         id               BIGSERIAL PRIMARY KEY,
-        product_variants BIGSERIAL UNIQUE NOT NULL REFERENCES product_variants (variant_id),
-        image_product    BIGSERIAL        NOT NULL REFERENCES attach_files (attach_files_id),
+        product_variants BIGINT UNIQUE NOT NULL REFERENCES product_variants (variant_id),
+        image_product    BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
         create_at        timestamp DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -187,8 +187,8 @@ data:
     CREATE TABLE inventory
     (
         inventory_id     BIGSERIAL PRIMARY KEY,
-        variant_id       BIGSERIAL NOT NULL REFERENCES product_variants (variant_id),
-        location_id      BIGSERIAL NOT NULL REFERENCES locations (location_id),
+        variant_id       BIGINT NOT NULL REFERENCES product_variants (variant_id),
+        location_id      BIGINT NOT NULL REFERENCES locations (location_id),
         quantity_on_hand INT       DEFAULT 0,
         last_updated     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (variant_id, location_id)
@@ -203,20 +203,20 @@ data:
     (
         transaction_id   BIGSERIAL PRIMARY KEY,
         transaction_date TIMESTAMP           DEFAULT CURRENT_TIMESTAMP,
-        employee_id      BIGSERIAL      NOT NULL REFERENCES employees (employee_id),
-        customer_id      BIGSERIAL REFERENCES customers (customer_id),
+        employee_id      BIGINT      NOT NULL REFERENCES employees (employee_id),
+        customer_id      BIGINT REFERENCES customers (customer_id),
         total_amount     DECIMAL(15, 2) NOT NULL,
         discount_amount  DECIMAL(15, 2)      DEFAULT 0,
         tax_amount       DECIMAL(15, 2)      DEFAULT 0,
         payment_status   payment_status_enum DEFAULT 'Pending',
-        location_id      BIGSERIAL      NOT NULL REFERENCES locations (location_id)
+        location_id      BIGINT      NOT NULL REFERENCES locations (location_id)
     );
 
     CREATE TABLE sale_items
     (
         sale_item_id      BIGSERIAL PRIMARY KEY,
-        transaction_id    BIGSERIAL      NOT NULL REFERENCES sales_transactions (transaction_id),
-        variant_id        BIGSERIAL      NOT NULL REFERENCES product_variants (variant_id),
+        transaction_id    BIGINT      NOT NULL REFERENCES sales_transactions (transaction_id),
+        variant_id        BIGINT      NOT NULL REFERENCES product_variants (variant_id),
         quantity          INT            NOT NULL,
         unit_price        DECIMAL(15, 2) NOT NULL,
         discount_per_item DECIMAL(15, 2) DEFAULT 0,
@@ -226,8 +226,8 @@ data:
     CREATE TABLE payments
     (
         payment_id        BIGSERIAL PRIMARY KEY,
-        transaction_id    BIGSERIAL      NOT NULL REFERENCES sales_transactions (transaction_id),
-        payment_method_id BIGSERIAL      NOT NULL REFERENCES payment_methods (payment_method_id),
+        transaction_id    BIGINT      NOT NULL REFERENCES sales_transactions (transaction_id),
+        payment_method_id BIGINT      NOT NULL REFERENCES payment_methods (payment_method_id),
         amount            DECIMAL(15, 2) NOT NULL,
         payment_date      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         reference_number  VARCHAR(100)
@@ -237,7 +237,7 @@ data:
     CREATE TABLE purchase_orders
     (
         purchase_order_id      BIGSERIAL PRIMARY KEY,
-        supplier_id            BIGSERIAL      NOT NULL REFERENCES suppliers (supplier_id),
+        supplier_id            BIGINT      NOT NULL REFERENCES suppliers (supplier_id),
         order_date             TIMESTAMP                  DEFAULT CURRENT_TIMESTAMP,
         expected_delivery_date TIMESTAMP,
         status                 purchase_order_status_enum DEFAULT 'Pending',
@@ -247,8 +247,8 @@ data:
     CREATE TABLE purchase_order_items
     (
         po_item_id        BIGSERIAL PRIMARY KEY,
-        purchase_order_id BIGSERIAL      NOT NULL REFERENCES purchase_orders (purchase_order_id),
-        variant_id        BIGSERIAL      NOT NULL REFERENCES product_variants (variant_id),
+        purchase_order_id BIGINT      NOT NULL REFERENCES purchase_orders (purchase_order_id),
+        variant_id        BIGINT      NOT NULL REFERENCES product_variants (variant_id),
         quantity          INT            NOT NULL,
         cost_price        DECIMAL(15, 2) NOT NULL,
         received_quantity INT DEFAULT 0
