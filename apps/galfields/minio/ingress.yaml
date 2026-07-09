@@ -1,5 +1,8 @@
 # Expone solo la API S3 (para servir/subir PDFs e imágenes). La consola de
 # administración (9001) queda interna; usar port-forward para acceder a ella.
+# Host de un solo nivel de subdominio (no cdn.galfields.*): el Universal SSL
+# gratuito de Cloudflare solo cubre kinforgeworks.com y *.kinforgeworks.com,
+# un subdominio de dos niveles no queda cubierto y el handshake TLS falla.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -12,9 +15,9 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - cdn.galfields.kinforgeworks.com
+        - cdn-galfields.kinforgeworks.com
   rules:
-    - host: cdn.galfields.kinforgeworks.com
+    - host: cdn-galfields.kinforgeworks.com
       http:
         paths:
           - path: /
