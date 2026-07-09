@@ -8,6 +8,10 @@ metadata:
   namespace: galfields
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # con replicas=1 y la cuota del namespace ajustada, un
+    # RollingUpdate normal necesita cupo para 2 pods a la vez y se queda
+    # bloqueado por ResourceQuota (ver apps/galfields/resource-quota.yaml)
   selector:
     matchLabels:
       app: micro
