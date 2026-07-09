@@ -7,8 +7,8 @@ spec:
   hard:
     requests.cpu: "1"
     requests.memory: 2Gi
-    limits.cpu: "3"
-    limits.memory: 3Gi
+    limits.cpu: "5"
+    limits.memory: 5Gi
 ---
 apiVersion: v1
 kind: LimitRange

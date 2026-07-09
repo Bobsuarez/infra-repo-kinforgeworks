@@ -7,11 +7,14 @@ metadata:
   name: micro
   namespace: galfields
 spec:
-  replicas: 1
+  replicas: 2 # antes 1: un solo pod era punto único de falla (un OOMKill
+  # o pico de carga tumbaba el servicio completo)
   strategy:
-    type: Recreate # con replicas=1 y la cuota del namespace ajustada, un
-    # RollingUpdate normal necesita cupo para 2 pods a la vez y se queda
-    # bloqueado por ResourceQuota (ver apps/galfields/resource-quota.yaml)
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0 # nunca pide cupo extra (evita el deadlock con
+      # ResourceQuota que teníamos con replicas=1 + Recreate)
+      maxUnavailable: 1 # actualiza un pod a la vez; el otro sigue sirviendo
   selector:
     matchLabels:
       app: micro
@@ -45,7 +48,7 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 1500m
-              memory: 512Mi
+              memory: 1Gi
