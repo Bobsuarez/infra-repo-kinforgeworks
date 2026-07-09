@@ -29,6 +29,8 @@ spec:
             # No son secretos: endpoint/bucket de MinIO (mismo namespace).
             - name: MINIO_ENDPOINT
               value: http://minio:9000
+            - name: MINIO_PUBLIC_ENDPOINT
+              value: https://cdn.galfields.kinforgeworks.com
             - name: MINIO_BUCKET
               value: galfields-products
           envFrom:
