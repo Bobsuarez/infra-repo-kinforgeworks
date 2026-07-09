@@ -7,7 +7,7 @@ spec:
   hard:
     requests.cpu: "1"
     requests.memory: 2Gi
-    limits.cpu: "5"
+    limits.cpu: "6"
     limits.memory: 5Gi
 ---
 apiVersion: v1

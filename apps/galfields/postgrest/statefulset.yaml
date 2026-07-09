@@ -37,11 +37,13 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
           resources:
             requests:
-              cpu: 150m
-              memory: 256Mi
+              cpu: 200m
+              memory: 384Mi
             limits:
-              cpu: 400m
-              memory: 512Mi
+              cpu: 1500m # antes 400m: Postgres quedaba fuertemente
+              # throttled (cgroup cpu.stat mostraba ~44% del tiempo
+              # bloqueado) en cada query durante la creación de productos
+              memory: 1Gi
       volumes:
         - name: data
           persistentVolumeClaim:
