@@ -341,7 +341,20 @@ Mismo patrón que en `maestrias`: `postgrest/statefulset.yaml` (Postgres) y
 `micro/deployment.yaml` (`pos-backend`) comparten `galfields-db-credentials`.
 Los nombres de variable salen de `application.properties` real de
 `pos-backend` — `DB_HOST` apunta al Service `db-primary` del namespace
-`galfields`:
+`galfields`.
+
+**`DB_URL_PRIMARY`/`DB_URL_REPLICA` (+ `DB_USER_*`/`DB_PASSWORD_*`):**
+`pos-backend` define dos `DataSource` vía `@ConfigurationProperties`
+(`spring.datasource.primary` / `spring.datasource.replica`, mismo patrón
+que `leads` en `maestrias`) — `DB_URL_PRIMARY` apunta a `db-primary`,
+`DB_URL_REPLICA` a `db-replica` (ver "Réplica de solo lectura de
+PostgreSQL"). El usuario/password son los mismos en ambas (la réplica
+comparte el rol de aplicación con el primario; solo `replicator` es
+exclusivo de la replicación en sí). El *routing* real de qué queries van
+a cada `DataSource` lo decide el código de `pos-backend`
+(`@Transactional(readOnly=true)` + un `AbstractRoutingDataSource`, o
+inyectando el bean correcto por repositorio) — esto solo deja las dos
+conexiones disponibles.
 
 ```bash
 kubectl create secret generic galfields-db-credentials \
@@ -353,6 +366,12 @@ kubectl create secret generic galfields-db-credentials \
   --from-literal=DB_NAME=<nombre_db> \
   --from-literal=DB_USERNAME=<usuario> \
   --from-literal=DB_PASSWORD=<password> \
+  --from-literal=DB_URL_PRIMARY='jdbc:postgresql://db-primary:5432/<nombre_db>' \
+  --from-literal=DB_USER_PRIMARY=<usuario> \
+  --from-literal=DB_PASSWORD_PRIMARY=<password> \
+  --from-literal=DB_URL_REPLICA='jdbc:postgresql://db-replica:5432/<nombre_db>' \
+  --from-literal=DB_USER_REPLICA=<usuario> \
+  --from-literal=DB_PASSWORD_REPLICA=<password> \
   --namespace=galfields \
   --dry-run=client -o yaml > galfields-db-credentials-plain.yaml
 
@@ -485,13 +504,12 @@ user/password/db: los mismos DB_USERNAME/DB_PASSWORD/DB_NAME de
                    "replicator" es exclusivo de la replicación en sí)
 ```
 
-> **Pendiente, del lado de la app, no de infra:** `pos-backend` necesita
-> soportar dos `DataSource` (uno para escrituras a `db-primary`, otro de
-> solo lectura a `db-replica`) para aprovechar esto — hoy no sabemos si
-> `application.properties` ya tiene esa distinción (a diferencia de
-> `maestrias`/`leads`, que sí declara `DB_URL_REPLICA` explícito). Sin ese
-> cambio en el código de `pos-backend`, la réplica queda sincronizada y
-> lista, pero nada la consulta todavía.
+> **Ya resuelto:** `pos-backend` sí define dos `DataSource` (mismo patrón
+> que `leads` en `maestrias` — `@ConfigurationProperties("spring.datasource.primary"/"spring.datasource.replica")`,
+> leyendo `DB_URL_PRIMARY`/`DB_URL_REPLICA` + `DB_USER_*`/`DB_PASSWORD_*`).
+> `galfields-db-credentials` ya trae esas seis llaves (ver "Gestión de
+> Secrets"). Lo único que sigue siendo responsabilidad del código de
+> `pos-backend` es el *routing* (qué queries van a cuál `DataSource`).
 
 **Verificar que la replicación está al día:**
 ```bash
@@ -600,10 +618,10 @@ desde cero si se quiere recuperar el nivel de redundancia.
       `init-replication-configmap.yaml`, contraseña de `replicator`
       parametrizada vía `galfields-replication-secret` (Sealed Secret,
       pendiente sellar con valor real — ver "Gestión de Secrets")
-- [ ] `pos-backend` no tiene (que sepamos) un segundo `DataSource` de solo
-      lectura — la réplica de `galfields` está lista y sincronizada pero
-      nada la consulta todavía; requiere cambio en el código de la app,
-      fuera de este repo
+- [x] `pos-backend` sí tiene un segundo `DataSource` de solo lectura
+      (`@ConfigurationProperties("spring.datasource.replica")`, mismo
+      patrón que `leads`) — se agregaron `DB_URL_PRIMARY`/`DB_URL_REPLICA`
+      + `DB_USER_*`/`DB_PASSWORD_*` a `galfields-db-credentials`
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication (mismo patrón que se acaba de aplicar en
