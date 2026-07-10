@@ -1,0 +1,79 @@
+# Réplica de solo lectura de db-primary, streaming replication vía WAL.
+# Traducción directa del servicio em-db-replica de compose.yaml (pos-backend):
+# en el primer arranque (PVC vacío) clona el primario con pg_basebackup y
+# pasa "-R" para que postgres quede configurado como standby automáticamente
+# (escribe standby.signal + primary_conninfo). Arranques siguientes solo
+# hacen "exec postgres" sobre el PGDATA ya clonado - nunca vuelve a correr
+# pg_basebackup mientras el PVC no se borre.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db-replica
+  namespace: galfields
+spec:
+  serviceName: db-replica
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db-replica
+  template:
+    metadata:
+      labels:
+        app: db-replica
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine # misma versión que db-primary, obligatorio para streaming replication
+          command:
+            - bash
+            - -c
+            - |
+              if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+                echo "Primera vez: copiando datos del primario con pg_basebackup..."
+                until pg_basebackup -h db-primary -D /var/lib/postgresql/data -U replicator -Fp -Xs -P -R; do
+                  echo "El primario aún no está listo, reintentando en 2s..."
+                  sleep 2
+                done
+                chown -R postgres:postgres /var/lib/postgresql/data
+                chmod 700 /var/lib/postgresql/data
+              fi
+              exec su-exec postgres postgres -D /var/lib/postgresql/data
+          env:
+            - name: TZ
+              value: America/Bogota
+            - name: PGTZ
+              value: America/Bogota
+            - name: PGPASSWORD # usada por pg_basebackup para autenticarse como replicator
+              valueFrom:
+                secretKeyRef:
+                  name: galfields-replication-secret
+                  key: REPLICATOR_PASSWORD
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 800m # la mitad que db-primary: solo aplica WAL y sirve
+              # lecturas, no procesa escrituras
+              memory: 768Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-replica-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-replica
+  namespace: galfields
+spec:
+  selector:
+    app: db-replica
+  ports:
+    - port: 5432
+      targetPort: 5432

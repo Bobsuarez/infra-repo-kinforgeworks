@@ -21,7 +21,8 @@ Cloudflare (DNS + proxy)
    ├── galfields.kinforgeworks.com      → namespace: galfields
    │     ├── micro (pos-backend)          (público)
    │     ├── postgrest (PostgreSQL primary, aislado, interno)
-   │     └── cdn.galfields.kinforgeworks.com → minio  (aislado, público)
+   │     │     └── db-replica (solo lectura, streaming replication, interno)
+   │     └── cdn-galfields.kinforgeworks.com → minio  (aislado, público)
    └── maestrias.kinforgeworks.com      → namespace: maestrias
          ├── web                          (público, / )
          ├── leads                        (público, /api — mismo Ingress que web)
@@ -77,10 +78,16 @@ infra-repo-kinforgeworks/
 │   │   ├── minio/                  # instancia aislada (PVC + credenciales propias)
 │   │   │   ├── statefulset.yaml
 │   │   │   ├── pvc.yaml
-│   │   │   └── ingress.yaml        # cdn.galfields.kinforgeworks.com
-│   │   └── postgrest/              # PostgreSQL primary (StatefulSet), sin Ingress (no es HTTP)
-│   │       ├── statefulset.yaml
-│   │       └── pvc.yaml
+│   │   │   ├── middleware.yaml     # Traefik: antepone el bucket a la ruta
+│   │   │   └── ingress.yaml        # cdn-galfields.kinforgeworks.com
+│   │   └── postgrest/              # PostgreSQL primary+réplica, sin Ingress (no es HTTP)
+│   │       ├── statefulset.yaml               # db-primary
+│   │       ├── pvc.yaml                       # db-primary-data
+│   │       ├── init-schema-configmap.yaml     # stand-in de schema hasta que exista Flyway
+│   │       ├── init-replication-configmap.yaml # 00_setup_replication.sh
+│   │       ├── db-replica-statefulset.yaml    # streaming replication, solo lectura
+│   │       ├── db-replica-pvc.yaml            # db-replica-data
+│   │       └── backup-cronjob.yaml            # pg_dump -> Google Drive
 │   └── maestrias/
 │       ├── namespace.yaml
 │       ├── resource-quota.yaml
@@ -370,6 +377,24 @@ kubectl create secret generic galfields-minio-secrets \
 rm galfields-minio-secrets-plain.yaml
 ```
 
+### Caso especial: `galfields-replication-secret` (usuario `replicator` de `db-replica`)
+
+Secret dedicado y separado de `galfields-db-credentials` a propósito: es
+la contraseña del rol `replicator` que crea `init-replication-configmap.yaml`
+en `db-primary` (no un usuario de aplicación), y la consume `db-replica`
+como `PGPASSWORD` para autenticar `pg_basebackup`. Ver sección "Réplica de
+solo lectura de PostgreSQL".
+
+```bash
+kubectl create secret generic galfields-replication-secret \
+  --from-literal=REPLICATOR_PASSWORD=<password> \
+  --namespace=galfields \
+  --dry-run=client -o yaml > galfields-replication-secret-plain.yaml
+
+./bootstrap/seal-secret.sh galfields-replication-secret-plain.yaml apps/galfields/postgrest/replication-secret.sealed.yaml
+rm galfields-replication-secret-plain.yaml
+```
+
 ### Caso especial: `galfields-backup-rclone-config` (backup externo a Google Drive)
 
 A diferencia de los demás secrets, este no se arma con `--from-literal`:
@@ -432,6 +457,65 @@ kubectl logs -n galfields job/manual-test-1 -c upload
 
 ---
 
+## Réplica de solo lectura de PostgreSQL (`galfields`)
+
+`db-replica` es una réplica de streaming (WAL) de `db-primary`, traducida
+del servicio `em-db-replica` de `compose.yaml` (repo de `pos-backend`).
+Igual que `db-primary`, es un `StatefulSet` interno sin `Ingress` — solo
+alcanzable dentro del namespace `galfields`.
+
+**Cómo se sincroniza:** en su primer arranque (PVC `db-replica-data`
+vacío), el contenedor corre `pg_basebackup` contra el Service
+`db-primary`, autenticado como el usuario `replicator` (creado por
+`init-replication-configmap.yaml`, que corre en `db-primary` antes que el
+schema). El flag `-R` de `pg_basebackup` deja el `standby.signal` +
+`primary_conninfo` ya configurados, así que en arranques siguientes el
+contenedor detecta que `PGDATA` ya existe y se salta directo a
+`exec postgres` — nunca vuelve a clonar mientras no se borre el PVC.
+
+**Conexión desde una app dentro de `galfields`** (ej. `pos-backend`, para
+enrutar lecturas ahí en vez de a `db-primary`):
+
+```
+host: db-replica.galfields.svc.cluster.local   # o solo "db-replica" dentro del mismo namespace
+port: 5432
+user/password/db: los mismos DB_USERNAME/DB_PASSWORD/DB_NAME de
+                   galfields-db-credentials (la réplica comparte el mismo
+                   rol de aplicación que el primario, solo el usuario
+                   "replicator" es exclusivo de la replicación en sí)
+```
+
+> **Pendiente, del lado de la app, no de infra:** `pos-backend` necesita
+> soportar dos `DataSource` (uno para escrituras a `db-primary`, otro de
+> solo lectura a `db-replica`) para aprovechar esto — hoy no sabemos si
+> `application.properties` ya tiene esa distinción (a diferencia de
+> `maestrias`/`leads`, que sí declara `DB_URL_REPLICA` explícito). Sin ese
+> cambio en el código de `pos-backend`, la réplica queda sincronizada y
+> lista, pero nada la consulta todavía.
+
+**Verificar que la replicación está al día:**
+```bash
+# en db-primary: WAL enviado vs. confirmado por la réplica (debería ser ~0 de diferencia)
+kubectl exec -n galfields db-primary-0 -- psql -U $POSTGRES_USER -c \
+  "SELECT client_addr, state, sent_lsn, replay_lsn, replay_lsn - sent_lsn AS lag_bytes FROM pg_stat_replication;"
+
+# en db-replica: confirma que está en modo standby y el timestamp del último WAL aplicado
+kubectl exec -n galfields db-replica-0 -- psql -U $POSTGRES_USER -c \
+  "SELECT pg_is_in_recovery(), pg_last_xact_replay_timestamp();"
+```
+
+**Failover manual** (si `db-primary` se pierde, para promover la réplica a
+primario — no hay failover automático, esto es una réplica de lectura,
+no un cluster de alta disponibilidad):
+```bash
+kubectl exec -n galfields db-replica-0 -- pg_ctl promote -D /var/lib/postgresql/data
+```
+Después de promoverla hay que repuntar `DB_HOST` en `galfields-db-credentials`
+hacia `db-replica` (o renombrar Services) y levantar una réplica nueva
+desde cero si se quiere recuperar el nivel de redundancia.
+
+---
+
 ## Pendientes / próximos pasos
 
 - [x] Definir gestión de Secrets — Sealed Secrets (controller vía GitOps en
@@ -459,7 +543,7 @@ kubectl logs -n galfields job/manual-test-1 -c upload
 - [ ] Sellar los Secrets que faltan de `galfields` (`galfields-*`)
 - [x] Confirmar el dominio real por proyecto — `kinforgeworks.com`
       (`galfields.kinforgeworks.com`, `maestrias.kinforgeworks.com`,
-      `cdn.kinforgeworks.com`, `cdn.galfields.kinforgeworks.com`,
+      `cdn.kinforgeworks.com`, `cdn-galfields.kinforgeworks.com`,
       `api.galfields.kinforgeworks.com`)
 - [ ] Crear en Cloudflare los registros DNS para los subdominios de arriba
       **+ `argocd.kinforgeworks.com`** apuntando a la IP del VPS (Traefik) —
@@ -510,14 +594,20 @@ kubectl logs -n galfields job/manual-test-1 -c upload
       (sintaxis Postgres), borrar `init-schema-configmap.yaml` y el PVC de
       `galfields` para que Flyway quede como única fuente de verdad del
       schema, sin conflictos con el stand-in
-- [ ] Cuando se agregue la réplica de `galfields` (`gf-db-replica`): portar
-      `00_setup_replication.sh` a un `ConfigMap` montado en
-      `/docker-entrypoint-initdb.d/`, parametrizando la contraseña del
-      usuario `replicator` vía Secret en vez de dejarla hardcodeada en el
-      script (como está hoy en el compose.yaml de referencia)
+- [x] Agregar la réplica de solo lectura de `galfields` (`db-replica`,
+      streaming replication desde `db-primary`) — ver sección "Réplica de
+      solo lectura de PostgreSQL". `00_setup_replication.sh` portado a
+      `init-replication-configmap.yaml`, contraseña de `replicator`
+      parametrizada vía `galfields-replication-secret` (Sealed Secret,
+      pendiente sellar con valor real — ver "Gestión de Secrets")
+- [ ] `pos-backend` no tiene (que sepamos) un segundo `DataSource` de solo
+      lectura — la réplica de `galfields` está lista y sincronizada pero
+      nada la consulta todavía; requiere cambio en el código de la app,
+      fuera de este repo
 - [ ] Agregar la réplica de solo lectura (`em-db-replica`) en
       `apps/maestrias/postgrest/` una vez definida la estrategia de
-      streaming replication
+      streaming replication (mismo patrón que se acaba de aplicar en
+      `galfields`, ver sección "Réplica de solo lectura de PostgreSQL")
 - [ ] Sellar `galfields-backup-rclone-config` (requiere autorizar rclone
       con Google Drive localmente y correr `seal-secret.sh` — ver sección
       "Backups de PostgreSQL"); hasta entonces `backup-cronjob.yaml` está

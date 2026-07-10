@@ -25,15 +25,20 @@ spec:
           envFrom:
             - secretRef:
                 name: galfields-db-credentials # compartido con micro (pos-backend)
+            - secretRef:
+                name: galfields-replication-secret # REPLICATOR_PASSWORD, usado por 00_setup_replication.sh
           ports:
             - containerPort: 5432
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-            # Se ejecuta solo la primera vez (volumen de datos vacío). Ver
-            # init-schema-configmap.yaml: es un stand-in hasta que existan
-            # migraciones Flyway reales en el repo de pos-backend.
-            - name: init-schema
+            # Se ejecutan solo la primera vez (volumen de datos vacío), en
+            # orden alfabético: 00_setup_replication.sh antes que
+            # 01_schema.sql. init-schema-configmap.yaml es un stand-in hasta
+            # que existan migraciones Flyway reales en el repo de pos-backend;
+            # init-replication-configmap.yaml es permanente (no depende de
+            # Flyway) por eso viven en ConfigMaps separados combinados acá.
+            - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
           resources:
             requests:
@@ -48,9 +53,13 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: db-primary-data
-        - name: init-schema
-          configMap:
-            name: db-primary-init-schema
+        - name: init-scripts
+          projected:
+            sources:
+              - configMap:
+                  name: db-primary-init-replication
+              - configMap:
+                  name: db-primary-init-schema
 ---
 apiVersion: v1
 kind: Service

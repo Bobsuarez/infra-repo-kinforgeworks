@@ -1,0 +1,39 @@
+# Portado de 00_setup_replication.sh (compose.yaml de pos-backend), con dos
+# cambios respecto al original:
+#   1. La contraseña de "replicator" ya no está hardcodeada: sale de
+#      $REPLICATOR_PASSWORD (env var del secret galfields-replication-secret,
+#      ver README - Gestión de Secrets).
+#   2. pg_hba.conf permite replicación solo desde el CIDR de pods de este
+#      clúster k3s (10.42.0.0/16), no 0.0.0.0/0 - el namespace ya está
+#      aislado por ResourceQuota, no hace falta abrirlo a cualquier IP.
+# Se monta junto a init-schema-configmap.yaml (volumen "projected" en
+# statefulset.yaml) para que ambos convivan en /docker-entrypoint-initdb.d;
+# el prefijo 00_ garantiza que este corra antes que 01_schema.sql.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-primary-init-replication
+  namespace: galfields
+data:
+  00_setup_replication.sh: |
+    #!/bin/bash
+    # Script de inicialización del primario para streaming replication.
+    # Se ejecuta automáticamente en el primer arranque, antes que los .sql de initdb.
+    set -e
+
+    # 1. Crear usuario dedicado a replicación
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+        CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '$REPLICATOR_PASSWORD';
+    EOSQL
+
+    # 2. Agregar configuración WAL al postgresql.conf generado por initdb
+    cat >> "$PGDATA/postgresql.conf" <<-EOF
+
+    # --- Streaming replication ---
+    wal_level            = replica
+    max_wal_senders      = 5
+    wal_keep_size        = 1GB
+    EOF
+
+    # 3. Permitir conexiones de replicación solo desde la red de pods del clúster
+    echo "host    replication     replicator      10.42.0.0/16       md5" >> "$PGDATA/pg_hba.conf"
