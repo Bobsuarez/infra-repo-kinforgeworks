@@ -72,6 +72,15 @@ data:
         created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+
+    CREATE TABLE payment_methods_images
+    (
+        id               BIGSERIAL PRIMARY KEY,
+        payment_methods  BIGINT UNIQUE NOT NULL REFERENCES payment_methods (payment_method_id),
+        image_product    BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
+        create_at        timestamp DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE attach_files
     (
         attach_files_id BIGSERIAL PRIMARY KEY,
@@ -289,4 +298,116 @@ data:
 
     -- 4. Índice optimizado para Login de empleados activos
     CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
+  02_seed_data.sql: |
+    -- Datos semilla de las tablas de referencia/configuración, orientados a
+    -- una tienda de barrio colombiana (licor, paquetes, dulces, tintos,
+    -- cigarrillos...). Solo para tener el POS con algo que mostrar mientras
+    -- no hay datos reales - mismo criterio que 01_schema.sql: stand-in hasta
+    -- que exista una fuente real (Flyway o carga de datos del negocio).
+    --
+    -- TRUNCATE ... CASCADE al principio: idempotente incluso si se corre
+    -- contra una base con datos de prueba previos (arrastra products,
+    -- product_variants, product_images e inventory, que dependen de
+    -- categories/brands/locations).
+    TRUNCATE categories, brands, locations RESTART IDENTITY CASCADE;
+
+    INSERT INTO categories (name, description) VALUES
+        ('Licores', 'Aguardiente, ron, whisky y licores en general'),
+        ('Aguardiente y Ron', 'Aguardiente y ron por botella o media'),
+        ('Cervezas', 'Cerveza nacional en botella, lata y barril'),
+        ('Cigarrillos y Tabaco', 'Cajetillas de cigarrillo y tabaco'),
+        ('Cigarrillos Sueltos', 'Cigarrillo suelto, venta por unidad'),
+        ('Dulces y Confites', 'Dulces, caramelos y confites surtidos'),
+        ('Chocolates', 'Chocolatinas y golosinas de chocolate'),
+        ('Chicles y Mentas', 'Chicles, mentas y aliento fresco'),
+        ('Galletas', 'Galletas dulces y saladas'),
+        ('Paquetes y Papas', 'Papas fritas y paquetes empacados'),
+        ('Mecato Salado', 'Pasabocas salados variados'),
+        ('Gaseosas', 'Bebidas gaseosas en botella y lata'),
+        ('Jugos y Refrescos', 'Jugos, refrescos y bebidas de fruta'),
+        ('Agua Embotellada', 'Agua con y sin gas'),
+        ('Bebidas Energizantes', 'Bebidas energizantes e hidratantes'),
+        ('Tintos y Café', 'Café molido, instantáneo y tinto para la venta'),
+        ('Aromáticas y Té', 'Aromáticas, té e infusiones'),
+        ('Huevos', 'Huevo rojo y blanco por unidad o cubeta'),
+        ('Pan y Panadería', 'Pan del día y productos de panadería'),
+        ('Embutidos', 'Chorizo, salchicha y embutidos fríos'),
+        ('Lácteos', 'Leche, kumis, avena y derivados lácteos'),
+        ('Arroz y Granos', 'Arroz, fríjol, lenteja y granos secos'),
+        ('Aceite y Grasas', 'Aceite de cocina y grasas'),
+        ('Panela y Azúcar', 'Panela, azúcar y endulzantes'),
+        ('Sal y Condimentos', 'Sal, caldos y condimentos'),
+        ('Enlatados y Conservas', 'Atún, sardinas y enlatados'),
+        ('Aseo Personal', 'Jabón, shampoo y cuidado personal'),
+        ('Aseo Hogar', 'Detergente, limpiadores y desinfectantes'),
+        ('Recargas y Minutos', 'Recargas de celular y minutos a todo operador'),
+        ('Fósforos y Encendedores', 'Fósforos, encendedores y velas');
+
+    INSERT INTO brands (name) VALUES
+        ('Aguardiente Antioqueño'),
+        ('Aguardiente Néctar'),
+        ('Ron Medellín'),
+        ('Ron Viejo de Caldas'),
+        ('Águila'),
+        ('Poker'),
+        ('Club Colombia'),
+        ('Costeña'),
+        ('Corona'),
+        ('Marlboro'),
+        ('Boston'),
+        ('Mustang'),
+        ('L&M'),
+        ('Colombina'),
+        ('Bon Bon Bum'),
+        ('Trululu'),
+        ('Super Ricas'),
+        ('Jet'),
+        ('Chocorramo'),
+        ('Margarita'),
+        ('Yupi'),
+        ('Detodito'),
+        ('Platanitos'),
+        ('Coca-Cola'),
+        ('Postobón'),
+        ('Pepsi'),
+        ('Colombiana'),
+        ('Colcafé'),
+        ('Sello Rojo'),
+        ('Bimbo');
+
+    INSERT INTO payment_methods (method_name, is_active) VALUES
+        ('Efectivo', TRUE),
+        ('Tarjeta Débito', TRUE),
+        ('Tarjeta Crédito', TRUE),
+        ('Nequi', TRUE),
+        ('Daviplata', TRUE),
+        ('Bancolombia QR', TRUE),
+        ('PSE', TRUE),
+        ('Transferencia Bancaria', TRUE),
+        ('Crédito Cliente', TRUE),
+        ('Bono Regalo', TRUE),
+        ('Puntos Colombia', TRUE),
+        ('Addi', TRUE),
+        ('Sistecredito', TRUE),
+        ('Consignación', TRUE),
+        ('Cheque', FALSE),
+        ('PayPal', FALSE);
+
+    INSERT INTO locations (name, address, phone) VALUES
+        ('Bogotá - Chapinero', 'Cra 13 # 45-67, Chapinero, Bogotá', '+57 601 555 0101'),
+        ('Bogotá - Suba', 'Av. Suba # 120-30, Suba, Bogotá', '+57 601 555 0102'),
+        ('Bogotá - Kennedy', 'Cl 38 Sur # 78-12, Kennedy, Bogotá', '+57 601 555 0103'),
+        ('Medellín - Poblado', 'Cra 43A # 10-25, El Poblado, Medellín', '+57 604 555 0201'),
+        ('Medellín - Laureles', 'Cl 33 # 76-40, Laureles, Medellín', '+57 604 555 0202'),
+        ('Cali - Norte', 'Av 6N # 28-50, Norte, Cali', '+57 602 555 0301'),
+        ('Cali - Sur', 'Cra 100 # 16-80, Sur, Cali', '+57 602 555 0302'),
+        ('Barranquilla - Centro', 'Cl 72 # 45-10, Centro, Barranquilla', '+57 605 555 0401'),
+        ('Cartagena - Bocagrande', 'Av San Martín # 6-70, Bocagrande, Cartagena', '+57 605 555 0501'),
+        ('Bucaramanga - Cabecera', 'Cra 33 # 45-20, Cabecera, Bucaramanga', '+57 607 555 0601'),
+        ('Pereira - Centro', 'Cl 19 # 8-30, Centro, Pereira', '+57 606 555 0701'),
+        ('Manizales - Centro', 'Cra 23 # 26-15, Centro, Manizales', '+57 606 555 0801'),
+        ('Ibagué - Centro', 'Cl 15 # 3-40, Centro, Ibagué', '+57 608 555 0901'),
+        ('Santa Marta - Centro', 'Cra 5 # 20-10, Centro, Santa Marta', '+57 605 555 1001'),
+        ('Cúcuta - Centro', 'Av 4 # 10-25, Centro, Cúcuta', '+57 607 555 1101'),
+        ('Villavicencio - Centro', 'Cl 38 # 30-15, Centro, Villavicencio', '+57 608 555 1201');
 
