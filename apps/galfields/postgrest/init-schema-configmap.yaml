@@ -207,6 +207,22 @@ data:
         ON inventory
         FOR EACH ROW EXECUTE FUNCTION set_last_updated();
 
+    -- stock_adjustments (V2__stock_adjustments.sql) - ya en el repo de
+    -- pos-backend, portado acá porque el ConfigMap sigue siendo la única
+    -- fuente de verdad del schema hasta que existan migraciones Flyway
+    -- reales aplicadas contra este cluster (ver README - Pendientes).
+    CREATE TABLE stock_adjustments
+    (
+        adjustment_id      BIGSERIAL PRIMARY KEY,
+        client_event_id    VARCHAR(100) NOT NULL,
+        variant_id         BIGINT       NOT NULL REFERENCES product_variants (variant_id),
+        location_id        BIGINT       NOT NULL REFERENCES locations (location_id),
+        quantity_delta     INT          NOT NULL,
+        resulting_quantity INT          NOT NULL,
+        created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (client_event_id, variant_id)
+    );
+
     -- 5. Transacciones de venta
     CREATE TABLE sales_transactions
     (
@@ -298,6 +314,9 @@ data:
 
     -- 4. Índice optimizado para Login de empleados activos
     CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
+
+    -- 5. Ajustes de stock (stock_adjustments)
+    CREATE INDEX idx_stock_adjustments_variant ON stock_adjustments (variant_id);
   02_seed_data.sql: |
     -- Datos semilla de las tablas de referencia/configuración, orientados a
     -- una tienda de barrio colombiana (licor, paquetes, dulces, tintos,
