@@ -234,7 +234,8 @@ data:
         discount_amount  DECIMAL(15, 2)      DEFAULT 0,
         tax_amount       DECIMAL(15, 2)      DEFAULT 0,
         payment_status   payment_status_enum DEFAULT 'Pending',
-        location_id      BIGINT      NOT NULL REFERENCES locations (location_id)
+        location_id      BIGINT      NOT NULL REFERENCES locations (location_id),
+        client_event_id  VARCHAR(100) UNIQUE
     );
 
     CREATE TABLE sale_items
