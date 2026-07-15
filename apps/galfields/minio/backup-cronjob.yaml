@@ -13,9 +13,6 @@ metadata:
 spec:
   schedule: "30 21 * * *" # poco después del backup de Postgres (21:00)
   timeZone: America/Bogota
-  suspend: true # mismo motivo que postgrest/backup-cronjob.yaml: sin el
-  # Secret esto queda atascado y bloquea corridas siguientes - reactivar
-  # apenas se selle galfields-backup-rclone-config con el remote "minio"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

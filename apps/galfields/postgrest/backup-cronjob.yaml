@@ -10,10 +10,6 @@ metadata:
 spec:
   schedule: "0 12,21 * * *"
   timeZone: America/Bogota
-  suspend: true # sin galfields-backup-rclone-config esto queda atascado en
-  # Init:0/1 y, con concurrencyPolicy: Forbid, bloquea las corridas
-  # siguientes también - reactivar (quitar esta línea) apenas se selle el
-  # Secret con los remotes gdrive+minio (ver README - Gestión de Secrets)
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
