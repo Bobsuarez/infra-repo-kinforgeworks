@@ -1,0 +1,48 @@
+# Backup de los objetos de MinIO (galfields-products) fuera del cluster
+# (Google Drive), una vez al día. Reutiliza el mismo Secret
+# galfields-backup-rclone-config que el backup de Postgres (ver
+# postgrest/backup-cronjob.yaml) - el rclone.conf de ese secret debe traer
+# DOS remotes: "gdrive" (OAuth) y "minio" (S3, credenciales de
+# galfields-minio-secrets, sin OAuth). Ver README, sección "Backups de
+# MinIO".
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: galfields-minio-backup
+  namespace: galfields
+spec:
+  schedule: "30 21 * * *" # poco después del backup de Postgres (21:00)
+  timeZone: America/Bogota
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: rclone/rclone:latest
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  rclone sync minio:galfields-products gdrive:galfields-minio-backups/ \
+                    --config /config/rclone/rclone.conf
+              volumeMounts:
+                - name: rclone-config
+                  mountPath: /config/rclone
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 300m
+                  memory: 256Mi
+          volumes:
+            - name: rclone-config
+              secret:
+                secretName: galfields-backup-rclone-config

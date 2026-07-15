@@ -79,7 +79,8 @@ infra-repo-kinforgeworks/
 │   │   │   ├── statefulset.yaml
 │   │   │   ├── pvc.yaml
 │   │   │   ├── middleware.yaml     # Traefik: antepone el bucket a la ruta
-│   │   │   └── ingress.yaml        # cdn-galfields.kinforgeworks.com
+│   │   │   ├── ingress.yaml        # cdn-galfields.kinforgeworks.com
+│   │   │   └── backup-cronjob.yaml # rclone sync galfields-products -> Google Drive
 │   │   └── postgrest/              # PostgreSQL primary+réplica, sin Ingress (no es HTTP)
 │   │       ├── statefulset.yaml               # db-primary
 │   │       ├── pvc.yaml                       # db-primary-data
@@ -414,31 +415,53 @@ kubectl create secret generic galfields-replication-secret \
 rm galfields-replication-secret-plain.yaml
 ```
 
-### Caso especial: `galfields-backup-rclone-config` (backup externo a Google Drive)
+### Caso especial: `galfields-backup-rclone-config` (backup de Postgres Y de MinIO a Google Drive)
 
-A diferencia de los demás secrets, este no se arma con `--from-literal`:
-contiene un `rclone.conf` con un token OAuth de Google Drive que solo se
-puede generar autorizando por navegador. **Se genera en tu compu, nunca
-en el VPS ni pegado en un chat**:
+A diferencia de los demás secrets, este no se arma solo con
+`--from-literal`: contiene un `rclone.conf` con **dos remotes**, uno de
+los cuales necesita un token OAuth que solo se puede generar autorizando
+por navegador. **El paso de OAuth se hace en tu compu, nunca en el VPS ni
+pegado en un chat** — ni `rclone` ni `kubeseal` corren ahí para este
+secret en particular:
 
 ```bash
+# 1. Remote "gdrive" (necesita navegador) - lo usan tanto el backup de
+#    Postgres como el de MinIO como destino.
 rclone config
 # crear un remote llamado "gdrive", tipo "drive" (Google Drive)
 # scope recomendado: drive.file (solo archivos creados por esta app,
 # no acceso a todo el Drive del usuario)
 # autorizar por navegador cuando lo pida
 
+# 2. Remote "minio" (sin navegador, son las credenciales de
+#    galfields-minio-secrets) - origen del backup de MinIO. El endpoint
+#    solo resuelve dentro del cluster; es normal que rclone no lo
+#    valide al crearlo acá.
+rclone config create minio s3 \
+  provider=Minio \
+  access_key_id=<MINIO_ACCESS_KEY de galfields-minio-secrets> \
+  secret_access_key='<MINIO_SECRET_KEY de galfields-minio-secrets>' \
+  endpoint=http://minio:9000
+
+# 3. Confirmar que quedaron los dos
+rclone listremotes   # debe mostrar "gdrive:" y "minio:"
+
+# 4. Sellar (kubeseal --cert evita necesitar kubeconfig contra el cluster;
+#    pedile a Claude el certificado público del controller si no lo tienes)
 kubectl create secret generic galfields-backup-rclone-config \
   --from-file=rclone.conf=$HOME/.config/rclone/rclone.conf \
   --namespace=galfields \
   --dry-run=client -o yaml > rclone-secret-plain.yaml
 
-./bootstrap/seal-secret.sh rclone-secret-plain.yaml apps/galfields/postgrest/backup-rclone-config.sealed.yaml
+kubeseal --cert=sealed-secrets-cert.pem --format=yaml \
+  < rclone-secret-plain.yaml > apps/galfields/postgrest/backup-rclone-config.sealed.yaml
 rm rclone-secret-plain.yaml
 ```
 
-El remote debe llamarse exactamente `gdrive` (nombre que usa
-`backup-cronjob.yaml` al invocar `rclone copy`/`rclone delete`).
+Los remotes deben llamarse exactamente `gdrive` y `minio` (nombres que
+usan `postgrest/backup-cronjob.yaml` y `minio/backup-cronjob.yaml` al
+invocar `rclone copy`/`rclone sync`). El secret se aplica una sola vez y
+lo consumen ambos `CronJob`.
 
 ---
 
@@ -455,7 +478,7 @@ del cluster:
   `db-primary` usando el mismo Secret `galfields-db-credentials` del
   StatefulSet, y un container `rclone/rclone` sube el archivo a
   `gdrive:galfields-backups/`.
-- **Retención:** 30 días (`rclone delete --min-age 30d` al final de cada
+- **Retención:** 7 días (`rclone delete --min-age 7d` al final de cada
   corrida).
 - **Requiere:** el Secret `galfields-backup-rclone-config` — ver la
   sección "Caso especial" arriba, hay que generarlo manualmente antes de
@@ -472,6 +495,39 @@ gunzip -c galfields-YYYYMMDD-HHMMSS.sql.gz | \
 kubectl create job --from=cronjob/galfields-db-backup manual-test-1 -n galfields
 kubectl logs -n galfields job/manual-test-1 -c pg-dump
 kubectl logs -n galfields job/manual-test-1 -c upload
+```
+
+> **Cuidado con `concurrencyPolicy: Forbid`:** si un job queda atascado
+> (ej. `Init:0/1` esperando un Secret que no existe), bloquea *todas* las
+> corridas programadas siguientes hasta que se borre a mano
+> (`kubectl delete job <nombre> -n galfields`) — el `CronJob` no lo
+> detecta ni avisa solo. Nos pasó exactamente esto: el Secret nunca se
+> selló, el primer job quedó colgado, y las corridas de los días
+> siguientes simplemente nunca se intentaron.
+
+---
+
+## Backups de MinIO (`galfields`)
+
+Mismo problema que `db-primary`: `minio` corre en un solo pod sobre un
+PVC del mismo VPS, sin redundancia. `apps/galfields/minio/backup-cronjob.yaml`
+saca copia del bucket `galfields-products` fuera del cluster:
+
+- **Cuándo:** `CronJob` diario a las 9:30pm hora `America/Bogota`
+  (`schedule: "30 21 * * *"`), poco después del backup de Postgres.
+- **Cómo:** un container `rclone/rclone` corre
+  `rclone sync minio:galfields-products gdrive:galfields-minio-backups/`
+  — `sync` (no `copy`) porque replica el estado exacto del bucket,
+  incluyendo borrados; no tiene retención aparte, el backup completo
+  siempre refleja el bucket actual.
+- **Requiere:** el mismo Secret `galfields-backup-rclone-config` que el
+  backup de Postgres, pero con el remote `minio` agregado — ver la
+  sección "Caso especial" en Gestión de Secrets.
+
+**Probar sin esperar al cron:**
+```bash
+kubectl create job --from=cronjob/galfields-minio-backup manual-test-1 -n galfields
+kubectl logs -n galfields job/manual-test-1 -c sync
 ```
 
 ---
@@ -626,10 +682,18 @@ desde cero si se quiere recuperar el nivel de redundancia.
       `apps/maestrias/postgrest/` una vez definida la estrategia de
       streaming replication (mismo patrón que se acaba de aplicar en
       `galfields`, ver sección "Réplica de solo lectura de PostgreSQL")
-- [ ] Sellar `galfields-backup-rclone-config` (requiere autorizar rclone
-      con Google Drive localmente y correr `seal-secret.sh` — ver sección
-      "Backups de PostgreSQL"); hasta entonces `backup-cronjob.yaml` está
-      aplicado pero el container `upload` va a fallar por falta del Secret
+- [ ] Sellar `galfields-backup-rclone-config` con los remotes `gdrive`
+      (requiere autorizar por navegador localmente) y `minio` (directo,
+      sin navegador) — ver "Gestión de Secrets"; hasta entonces ni
+      `postgrest/backup-cronjob.yaml` ni `minio/backup-cronjob.yaml`
+      pueden correr exitosamente
+- [x] Agregar backup de MinIO (`galfields-products` -> Google Drive,
+      `apps/galfields/minio/backup-cronjob.yaml`, diario 9:30pm) — antes
+      no existía ningún backup para MinIO, solo para Postgres
+- [x] Corregido: un job atascado de `galfields-db-backup` (esperando el
+      Secret que nunca se selló) bloqueó silenciosamente todas las
+      corridas programadas por 6+ días (`concurrencyPolicy: Forbid`) —
+      borrado a mano, agregada advertencia en el README
 - [ ] Configurar `cert-manager` si se requiere TLS end-to-end (fuera del
       modo "Full" de Cloudflare)
 - [ ] Definir política de sync de ArgoCD (automática vs manual) por ambiente
