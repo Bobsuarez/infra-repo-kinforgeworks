@@ -30,7 +30,8 @@ enabled  = true
 port     = ${SSH_PORT}
 backend  = systemd
 maxretry = 3
-findtime = 10m
+findtime = 24h # 10m dejaba pasar bots "low and slow" (1 intento cada
+# ~12-14 min, justo debajo del umbral) - nunca acumulaban los 3 fallos
 bantime  = 1h
 bantime.increment = true
 bantime.factor    = 4
